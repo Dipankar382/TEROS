@@ -174,6 +174,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [hospitalData, setHospitalData] = useState<Hospital[]>(initialHospitals);
   const [ambulanceSpeed, setAmbulanceSpeed] = useState(0);
   const [simSpeedMultiplier, setSimSpeedMultiplier] = useState(1);
+  const [emergencyModalOpen, setEmergencyModalOpen] = useState(false);
+  const [routeSwitchModalOpen, setRouteSwitchModalOpen] = useState(false);
+  const [currentObstacle, setCurrentObstacle] = useState<string | null>(null);
 
   const mockEmergencies = [
     { id: 'e1', name: 'Trauma Case #1', lat: 30.0864, lng: 78.2676, description: 'Multiple collision near AIIMS gate.', severity: 'high' as const },
@@ -198,7 +201,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let minDist = Infinity;
     hospitalData.forEach(h => {
       const d = calculateDistance(coords, [h.lat, h.lng]);
-      if (d < minDist && h.beds > 0) {
+      const available = h.beds.general.available + h.beds.icu.available + h.beds.emergency.available + h.beds.ventilator.available;
+      if (d < minDist && available > 0) {
         minDist = d;
         best = h.id;
       }
