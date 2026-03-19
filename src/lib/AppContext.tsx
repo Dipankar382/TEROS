@@ -17,6 +17,10 @@ type AppState = {
   heartRate: number;
   spo2: number;
   setMissionStage: (s: 'idle' | 'to_patient' | 'to_hospital') => void;
+  isLiveGPS: boolean;
+  setIsLiveGPS: (v: boolean) => void;
+  driverCoords: [number, number] | null;
+  setDriverCoords: (coords: [number, number] | null) => void;
   goldenHour: number;
   resetGoldenHour: () => void;
   criticalEventActive: boolean;
@@ -101,6 +105,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentRouteIdx, setCurrentRouteIdx] = useState(0);
   const [ambulanceProgress, setAmbulanceProgress] = useState(0);
   const [emergencyCoords, setEmergencyCoords] = useState<[number, number] | null>(null);
+  const [isLiveGPS, setIsLiveGPS] = useState(false);
+  const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null);
+  const syncChannel = useRef<BroadcastChannel | null>(null);
   
   // New Mission Telemetry State
   const [score, setScore] = useState(92);
@@ -110,6 +117,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [toHospitalPath, setToHospitalPath] = useState<number[][] | null>(null);
   const [previewRoutes, setPreviewRoutes] = useState<Array<{ id: string; path: number[][] }>>([]);
   const [previewSelectedId, setPreviewSelectedId] = useState<string | null>(null);
+
+  // Cross-tab Synchronization Logic
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    syncChannel.current = new BroadcastChannel('teros_live_sync');
+    
+    syncChannel.current.onmessage = (event) => {
+      const { type, payload } = event.data;
+      switch (type) {
+        case 'UPDATE_DRIVER_LOCATION':
+          if (!isLiveGPS) setDriverCoords(payload);
+          break;
+        case 'UPDATE_EMERGENCY_COORDS':
+          setEmergencyCoords(payload);
+          break;
+        case 'UPDATE_MISSION_STAGE':
+          setMissionStage(payload);
+          break;
+        case 'TRIGGER_SOS_SYNC':
+          setNavigating(true);
+          setMissionStage('to_patient');
+          setEmergencyCoords(payload);
+          break;
+      }
+    };
+
+    return () => syncChannel.current?.close();
+  }, [isLiveGPS]);
+
+  // Broadcast local changes
+  useEffect(() => {
+    if (isLiveGPS && driverCoords) {
+      syncChannel.current?.postMessage({ type: 'UPDATE_DRIVER_LOCATION', payload: driverCoords });
+    }
+  }, [driverCoords, isLiveGPS]);
+
+  useEffect(() => {
+    if (emergencyCoords) {
+      syncChannel.current?.postMessage({ type: 'UPDATE_EMERGENCY_COORDS', payload: emergencyCoords });
+    }
+  }, [emergencyCoords]);
+
+  useEffect(() => {
+    syncChannel.current?.postMessage({ type: 'UPDATE_MISSION_STAGE', payload: missionStage });
+  }, [missionStage]);
 
   const t = useCallback((key: TranslationKey) => {
     return translations[language][key] || key;
@@ -353,6 +406,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       toHospitalPath, setToHospitalPath,
       previewRoutes, setPreviewRoutes,
       previewSelectedId, setPreviewSelectedId,
+      isLiveGPS, setIsLiveGPS,
+      driverCoords, setDriverCoords,
       score,
       elevationData,
       currentSegIdx,

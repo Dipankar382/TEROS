@@ -26,7 +26,8 @@ export default function LeftPanel() {
     manualHospitalSelection, setManualHospitalSelection,
     patientCondition, setPatientCondition, heartRate, spo2,
     liveTemp, liveWind, liveVisibility, liveRain,
-    currentRouteIdx, ambulanceProgress
+    currentRouteIdx, ambulanceProgress,
+    isLiveGPS, setIsLiveGPS, driverCoords, setDriverCoords
   } = useApp();
 
   const [showTelemetry, setShowTelemetry] = useState(false);
@@ -524,6 +525,50 @@ export default function LeftPanel() {
                 )}
               </div>
             )}
+            {/* Live Demo Mode */}
+            <section style={{ 
+              padding: '16px', background: 'var(--primary-light)', 
+              borderRadius: 'var(--radius-md)', border: '1px solid var(--primary)',
+              display: 'flex', flexDirection: 'column', gap: '12px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Activity size={18} color="var(--primary)" />
+                <div style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase' }}>
+                  Live Demo Mode
+                </div>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <button 
+                  onClick={() => setIsLiveGPS(!isLiveGPS)}
+                  style={{
+                    width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--primary)',
+                    background: isLiveGPS ? 'var(--primary)' : 'white',
+                    color: isLiveGPS ? 'white' : 'var(--primary)',
+                    fontSize: '11px', fontWeight: 800, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                    transition: 'all 0.2s'
+                  }}>
+                  {isLiveGPS ? '📶 DISABLE DEVICE GPS' : '📡 ENABLE DEVICE GPS'}
+                </button>
+                
+                <div style={{ fontSize: '10px', color: 'var(--primary)', opacity: 0.8, textAlign: 'center', fontStyle: 'italic' }}>
+                  {isLiveGPS 
+                    ? 'Currently tracking this device\'s real location' 
+                    : 'Simulation mode active (pre-calculated paths)'}
+                </div>
+                
+                {!isLiveGPS && driverCoords && (
+                  <div style={{ 
+                    padding: '8px', background: 'white', borderRadius: '6px', 
+                    fontSize: '10px', color: 'var(--success)', fontWeight: 700,
+                    textAlign: 'center', border: '1px dashed var(--success)'
+                  }}>
+                    🔄 SYNCED LOCATION RECEIVED
+                  </div>
+                )}
+              </div>
+            </section>
           </div>
         )}
 

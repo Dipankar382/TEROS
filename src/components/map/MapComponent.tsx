@@ -56,7 +56,8 @@ export default function MapComponent() {
     toPatientPath, setToPatientPath,
     toHospitalPath, setToHospitalPath,
     previewRoutes, previewSelectedId,
-    mockEmergencies
+    mockEmergencies,
+    isLiveGPS, driverCoords, setDriverCoords
   } = useApp();
 
   const [terrain, setTerrain] = useState(false);
@@ -132,13 +133,14 @@ export default function MapComponent() {
 
   const ambulanceIcon = useMemo(() => L.divIcon({
     html: `<div style="width:48px;height:48px;position:relative;">
-      <div style="position:absolute;inset:-6px;border-radius:50%;border:2px solid #2563EB;animation:pulseGlow 1.5s infinite;opacity:0.8;"></div>
-      <div style="width:48px;height:48px;border-radius:50%;background:#2563EB;border:3px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;">
+      <div style="position:absolute;inset:-6px;border-radius:50%;border:2px solid ${isLiveGPS ? '#10B981' : '#2563EB'};animation:pulseGlow 1.5s infinite;opacity:0.8;"></div>
+      <div style="width:48px;height:48px;border-radius:50%;background:${isLiveGPS ? '#10B981' : '#2563EB'};border:3px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;">
         <svg viewBox="0 0 24 24" fill="white" style="width:26px;height:26px;"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5H15V3H9v2H6.5c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
       </div>
+      ${isLiveGPS ? '<div style="position:absolute;top:-5px;right:-5px;background:#10B981;color:white;font-size:8px;padding:2px 4px;border-radius:4px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,0.2);">LIVE</div>' : ''}
     </div>`,
     className: '', iconSize: [48, 48], iconAnchor: [24, 24],
-  }), []);
+  }), [isLiveGPS]);
 
   const weatherIcon = useCallback((icon: string) => L.divIcon({
     html: `<div style="font-size:24px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3));">${icon}</div>`,
@@ -226,6 +228,32 @@ export default function MapComponent() {
       })
       .catch(err => console.error('Stage 2 Fetch Error', err));
   }, [emergencyCoords, selectedHospital, toHospitalPath, setToHospitalPath]);
+
+  // Real-time GPS Tracking Logic
+  useEffect(() => {
+    if (!isLiveGPS) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const newCoords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+        setDriverCoords(newCoords);
+        if (ambulanceRef.current) {
+          ambulanceRef.current.setLatLng(newCoords);
+        }
+      },
+      (err) => console.error('GPS Watch Error:', err),
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [isLiveGPS, setDriverCoords]);
+
+  // Sync ambulance marker with driverCoords (for dispatcher view)
+  useEffect(() => {
+    if (!isLiveGPS && driverCoords && ambulanceRef.current) {
+      ambulanceRef.current.setLatLng(driverCoords as L.LatLngExpression);
+    }
+  }, [driverCoords, isLiveGPS]);
 
   // Main animation loop
   useEffect(() => {
