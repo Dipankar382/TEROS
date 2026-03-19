@@ -200,6 +200,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const resetGoldenHour = useCallback(() => setGoldenHour(3600), []);
   const startCriticalEvent = useCallback((severity: 'high' | 'medium' = 'medium') => {
     setCriticalEventActive(true);
+    setGoldenHour(severity === 'high' ? 1800 : 2700);
     setPatientCondition('deteriorating');
     showNotification('CRITICAL UPDATE', `Patient vitals are ${severity === 'high' ? 'crashing' : 'unstable'}!`, 'danger');
   }, [showNotification]);
@@ -278,28 +279,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Automated Allocation Service
   useEffect(() => {
     if (sosStatus === 'requested' && emergencyCoords && activeAmbulanceId === null) {
-      let nearestId: string | null = null;
-      let minDistance = Infinity;
+      const timer = setTimeout(() => {
+        let nearestId: string | null = null;
+        let minDistance = Infinity;
 
-      // Only allocate ambulances that are actually connected/live
-      const liveDrivers = ambulances.filter(a => a.status === 'available'); // Note: further constrained if needed, but we keep this simple to ensure any map-visible driver is allocatable
+        const liveDrivers = ambulances.filter(a => a.status === 'available');
 
-      liveDrivers.forEach(amb => {
-        const dist = calculateDistance(emergencyCoords, [amb.lat, amb.lng]);
-        if (dist < minDistance) {
-          minDistance = dist;
-          nearestId = amb.id;
+        liveDrivers.forEach(amb => {
+          const dist = calculateDistance(emergencyCoords, [amb.lat, amb.lng]);
+          if (dist < minDistance) {
+            minDistance = dist;
+            nearestId = amb.id;
+          }
+        });
+
+        if (nearestId) {
+          const targetId = nearestId;
+          setAmbulances(prev => prev.map(a => a.id === targetId ? { ...a, status: 'busy' } : a));
+          setActiveAmbulanceId(targetId);
+          setSosStatus('dispatched');
+          showNotification('Ambulance Allocated', `Unit ${targetId} has been dispatched automatically.`, 'success');
         }
-      });
-
-      if (nearestId) {
-        const targetId = nearestId;
-        // Wrapping updates to ensure they happen together and correctly
-        setAmbulances(prev => prev.map(a => a.id === targetId ? { ...a, status: 'busy' } : a));
-        setActiveAmbulanceId(targetId);
-        setSosStatus('dispatched');
-        showNotification('Ambulance Allocated', `Unit ${targetId} has been dispatched to your location.`, 'success');
-      }
+      }, 10000); // 10s grace period for manual Admin response
+      return () => clearTimeout(timer);
     }
   }, [sosStatus, emergencyCoords, activeAmbulanceId, ambulances, calculateDistance, showNotification]);
 

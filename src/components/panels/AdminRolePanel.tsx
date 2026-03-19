@@ -18,7 +18,8 @@ export default function AdminRolePanel() {
     ambulanceSpeed, goldenHour,
     liveTemp, liveWind, liveVisibility, liveRain,
     elevationData, currentSegIdx,
-    showNotification, t, language
+    showNotification, t, language,
+    setNavigating, setMissionStage, startCriticalEvent, findOptimalHospital
   } = useApp();
 
   const activeAmbulance = ambulances.find(a => a.id === activeAmbulanceId);
@@ -46,7 +47,34 @@ export default function AdminRolePanel() {
     setActiveAmbulanceId(null);
     setEmergencyCoords(null);
     setAmbulances(prev => prev.map(a => ({ ...a, status: 'available' as const })));
+    setNavigating(false);
+    setMissionStage('idle');
     showNotification('System Reset', 'Global state has been cleared by Admin.', 'warning');
+  };
+
+  const handleRespond = () => {
+    if (!emergencyCoords) return;
+    
+    // Allocate the best ambulance if not already done
+    let targetAmbulanceId = activeAmbulanceId;
+    if (!targetAmbulanceId) {
+      const nearId = findOptimalHospital(emergencyCoords, false); // reused logic to find closest
+      // Actually find closest ambulance
+      const sortedAmbs = [...ambulances].sort((a, b) => {
+        const dA = Math.sqrt((a.lat - emergencyCoords[0])**2 + (a.lng - emergencyCoords[1])**2);
+        const dB = Math.sqrt((b.lat - emergencyCoords[0])**2 + (b.lng - emergencyCoords[1])**2);
+        return dA - dB;
+      });
+      targetAmbulanceId = sortedAmbs[0]?.id || 'amb-1';
+      setActiveAmbulanceId(targetAmbulanceId);
+    }
+
+    setNavigating(true);
+    setMissionStage('to_patient');
+    setSosStatus('dispatched');
+    startCriticalEvent('high');
+    
+    showNotification('Mission Started', `Responding to emergency with Unit ${targetAmbulanceId}.`, 'success');
   };
 
   return (
@@ -108,6 +136,22 @@ export default function AdminRolePanel() {
                   </div>
                 </div>
              </div>
+
+             {sosStatus === 'requested' && (
+               <button 
+                 onClick={handleRespond}
+                 style={{
+                   width: '100%', marginTop: '16px', padding: '14px', borderRadius: '12px',
+                   background: 'white', color: 'var(--critical)', border: 'none',
+                   fontSize: '13px', fontWeight: 900, cursor: 'pointer',
+                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                   boxShadow: '0 4px 12px rgba(220, 53, 69, 0.3)',
+                   animation: 'pulseGlow 2s infinite'
+                 }}
+               >
+                 <Zap size={16} fill="currentColor" /> RESPOND TO EMERGENCY
+               </button>
+             )}
           </section>
 
           {/* Speed + Golden Hour HUD */}

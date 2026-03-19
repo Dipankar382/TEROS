@@ -304,7 +304,7 @@ export default function MapComponent() {
         if (!isNaN(lat) && !isNaN(lng)) {
           ambulanceRef.current.setLatLng([lat, lng] as L.LatLngExpression);
           // Sync simulation coords back to global state so other roles can see the movement
-          if (!isLiveGPS && activeRole === 'driver') {
+          if (!isLiveGPS && (activeRole === 'driver' || activeRole === 'admin' || activeRole === 'simulation')) {
             // Only update global state if moved significantly (> 0.00001 degrees ~1.1 meters)
             // This prevents overwhelming the BroadcastChannel during high-FPS simulations
             const lastLat = driverCoords?.[0] || 0;

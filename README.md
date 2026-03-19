@@ -1,13 +1,13 @@
 # Teros: Advanced Emergency Healthcare Routing AI
 
-[![Netlify Status](https://api.netlify.com/api/v1/badges/550f4a1d-d517-4167-a73f-3ba9a2b18b26/deploy-status)](https://teros-ai.netlify.app/)
+[![Vercel Deployment](https://img.shields.io/badge/Deploy-Vercel-black?logo=vercel)](https://teros-five.vercel.app/)
 [![Next.js](https://img.shields.io/badge/Framework-Next.js-black?logo=next.js)](https://nextjs.org/)
 [![C++](https://img.shields.io/badge/Backend-C++-00599C?logo=c%2B%2B&logoColor=white)](https://isocpp.org/)
 [![WebSocket](https://img.shields.io/badge/Sync-WebSocket-010101?logo=socket.io&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
 
 **Teros** is a high-performance emergency routing system designed for extreme mountain environments, specifically the **Tehri Garhwal** region. It optimizes ambulance dispatch using a **Survivability Index** that accounts for terrain, weather, and real-time hospital resource availability.
 
-🚀 **[View Live Web App](https://teros-ai.netlify.app/)** | ⚙️ **[Backend Server](https://teros-1.onrender.com)**
+🚀 **[View Live Demo](https://teros-five.vercel.app/)** | ⚙️ **[Backend Server](https://teros-1.onrender.com)**
 
 ![TEROS Preview](./public/preview.png)
 
@@ -50,15 +50,15 @@ Unlike typical mock demos, Teros uses a **C++ Asynchronous WebSocket Server** (d
 ## 🛠️ Technical Architecture
 
 ### Frontend (React/Next.js)
-- **Framework**: Next.js 15+ (App Router)
-- **State Management**: React Context API with Native WebSocket integration.
-- **Mapping**: Leaflet.js with custom topographic and traffic layers.
-- **Iconography**: Lucide React / Custom SVG HUDs.
+- **Framework**: [Next.js 15+](https://nextjs.org/) (App Router)
+- **UI**: [React 19](https://react.dev/), [Lucide React](https://lucide.dev/)
+- **Mapping**: [Leaflet](https://leafletjs.com/), [React-Leaflet](https://react-leaflet.js.org/)
+- **Styling**: Vanilla CSS (Modern CSS3 with Glassmorphism)
 
 ### Backend (C++/Networking)
-- **Engine**: Custom C++ Telemetry Server.
+- **Engine**: Custom C++ Telemetry Server (High-Performance Engine).
 - **Logic**: Handles authentication (Patient/Driver/Admin roles) and high-frequency coordinate broadcasting.
-- **Hosting**: Render (Web Service).
+- **Hosting**: Render (Web Service) / Vercel.
 
 ---
 
@@ -80,6 +80,16 @@ NEXT_PUBLIC_MAP_TILE_URL=https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
 
 ---
 
+## 🧠 Mission Workflow
+
+1. **Scenario Selection**: The user selects an emergency scenario (e.g., Cardiac Arrest).
+2. **Data Integration**: Teros fetches real-time terrain, traffic, and hospital data.
+3. **Route Optimization**: The AI calculates multiple routes and assigns a **Survivability Index**.
+4. **Dispatch**: The safest route is displayed, and the Golden Hour timer begins.
+5. **Real-time Navigation**: The ambulance follows the path with dynamic re-routing.
+
+---
+
 ## 📄 License & Recognition
-Developed for the **Yukti Hackathon**. Produced by **Pat Hawkers**.
+This project is developed for the **Yukti Hackathon**. Developed by **Dipankar Mehata**.
 © 2026 Teros AI Systems.
