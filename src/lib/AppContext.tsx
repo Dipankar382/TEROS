@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { io, Socket } from 'socket.io-client';
 import { hospitals as initialHospitals, routes, type Hospital } from '@/lib/mockData';
 import { translations, type Language, type TranslationKey } from './translations';
 
@@ -123,7 +124,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [emergencyCoords, setEmergencyCoords] = useState<[number, number] | null>(null);
   const [isLiveGPS, setIsLiveGPS] = useState(false);
   const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null);
-  const syncChannel = useRef<BroadcastChannel | null>(null);
+  
+  // Real-time Sync Reference (Socket.io)
+  const syncSocket = useRef<Socket | null>(null);
 
   const [activeRole, setActiveRole] = useState<'simulation' | 'patient' | 'driver' | 'hospital' | 'admin'>('simulation');
   const [sosStatus, setSosStatus] = useState<'idle' | 'requested' | 'dispatched' | 'picked_up' | 'delivered'>('idle');
@@ -150,232 +153,83 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return translations[language][key] || key;
   }, [language]);
 
-  const mockEmergencies: Array<{ id: string; name: string; lat: number; lng: number; description: string; severity?: 'high' | 'medium' }> = [
-    { id: 'nh7_landslide', name: 'Landslide on NH-7', lat: 30.1250, lng: 78.3150, description: 'Blocked road near Shivpuri', severity: 'high' },
-    { id: 'thdc_spill', name: 'Lab Chemical Spill - THDC IHET', lat: 30.3705, lng: 78.4302, description: 'Inhalation risk at campus lab', severity: 'medium' },
-    { id: 'tehri_dam_accident', name: 'Accident - Tehri Dam Viewpoint', lat: 30.3780, lng: 78.4750, description: 'Vehicle fall near dam reservoir', severity: 'high' },
-    { id: 'chamba_landslide', name: 'Landslide - Chamba Road', lat: 30.3550, lng: 78.4050, description: 'Major blockage on New Tehri road', severity: 'high' },
-    { id: 'city_heart', name: 'Heart Attack - City Center', lat: 30.0869, lng: 78.2676, description: 'Emergency near Laxman Jhula', severity: 'high' },
-    { id: 'trekker_injury', name: 'Trekker Injury - Neer Garh', lat: 30.1420, lng: 78.3310, description: 'Falls from height, head injury', severity: 'medium' },
-    { id: 'forest_fire_pauri', name: 'Forest Fire - Pauri Ridge', lat: 30.1550, lng: 78.7850, description: 'Multiple burn injuries reported', severity: 'high' },
-    { id: 'cloudburst_tehri', name: 'Cloudburst - Upper Tehri', lat: 30.4000, lng: 78.4500, description: 'Structural collapse, survivors trapped', severity: 'high' },
-    { id: 'glacial_outflow', name: 'Glacial Outflow - Rishiganga', lat: 30.4850, lng: 79.7400, description: 'Flash flood, hydro-project accident', severity: 'high' },
-    { id: 'bridge_collapse', name: 'Bridge Collapse - Srinagar', lat: 30.2250, lng: 78.7880, description: 'Vehicle in river, multiple casualties', severity: 'high' },
-    { id: 'high_altitude_edema', name: 'HAPE Case - Kedarnath', lat: 30.7352, lng: 79.0672, description: 'Severe altitude sickness, O2 required', severity: 'high' },
-  ];
-  
-  const [liveTemp, setLiveTemp] = useState(8);
-  const [liveWind, setLiveWind] = useState(22);
-  const [liveVisibility, setLiveVisibility] = useState(2.1);
-  const [liveRain, setLiveRain] = useState('Light');
-  const [offlineMode, setOfflineMode] = useState(false);
-  const [sosActive, setSosActive] = useState(false);
-  
-  const [hospitalData, setHospitalData] = useState<Hospital[]>(
-    initialHospitals.map(h => ({ ...h, beds: { 
-      general: { ...h.beds.general }, icu: { ...h.beds.icu }, 
-      emergency: { ...h.beds.emergency }, ventilator: { ...h.beds.ventilator } 
-    }}))
-  );
-
-  const [ambulanceSpeed, setAmbulanceSpeed] = useState(0);
-  const [simSpeedMultiplier, setSimSpeedMultiplier] = useState(25);
   const [notification, setNotification] = useState<{ title: string; message: string; type: NotificationType } | null>(null);
-  const notifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const ghStartTime = useRef<number | null>(null);
-  const accumulatedSimMs = useRef<number>(0);
-  const [emergencyModalOpen, setEmergencyModalOpen] = useState(false);
-  const [routeSwitchModalOpen, setRouteSwitchModalOpen] = useState(false);
-  const [currentObstacle, setCurrentObstacle] = useState<string | null>(null);
 
   const showNotification = useCallback((title: string, message: string, type: NotificationType = 'info') => {
     setNotification({ title, message, type });
-    if (notifTimer.current) clearTimeout(notifTimer.current);
-    notifTimer.current = setTimeout(() => setNotification(null), 4000);
+    setTimeout(() => setNotification(null), 5000);
   }, []);
 
-  const findOptimalHospital = useCallback((coords: [number, number], silent: boolean = false) => {
-    if (manualHospitalSelection) return selectedHospital;
+  const [liveTemp, setLiveTemp] = useState(18);
+  const [liveWind, setLiveWind] = useState(12);
+  const [liveVisibility, setLiveVisibility] = useState(8);
+  const [liveRain, setLiveRain] = useState('0mm');
+  const [offlineMode, setOfflineMode] = useState(false);
+  const [sosActive, setSosActive] = useState(false);
+  const [hospitalData, setHospitalData] = useState<Hospital[]>(initialHospitals);
+  const [ambulanceSpeed, setAmbulanceSpeed] = useState(0);
+  const [simSpeedMultiplier, setSimSpeedMultiplier] = useState(1);
 
-    let bestHospitalId = selectedHospital;
-    let minWaitScore = Infinity;
+  const mockEmergencies = [
+    { id: 'e1', name: 'Trauma Case #1', lat: 30.0864, lng: 78.2676, description: 'Multiple collision near AIIMS gate.', severity: 'high' as const },
+    { id: 'e2', name: 'Cardiac Arrest', lat: 30.0750, lng: 78.2900, description: 'Elderly patient collapsed at home.', severity: 'high' as const },
+  ];
 
-    hospitalData.forEach(hospital => {
-      if (!hospital.open) return;
-      
-      const dist = Math.sqrt(
-        Math.pow(hospital.lat - coords[0], 2) + 
-        Math.pow(hospital.lng - coords[1], 2)
-      );
-      
-      // AI weight: ICU availability is crucial (penalty for low beds)
-      const icuAvail = hospital.beds.icu.available;
-      const bedPenalty = 10 / (icuAvail + 0.1); // Strong penalty for 0 or 1 beds
-      
-      // Trauma specialist bonus (negative penalty)
-      const traumaBonus = hospital.specialties.includes('Trauma') ? -0.5 : 0;
-      
-      // Dynamic composite score (Distance + Bed Factor + Specialties)
-      const compositeScore = (dist * 100) + bedPenalty + (traumaBonus * 10);
-
-      if (icuAvail > 0 && compositeScore < minWaitScore) {
-        minWaitScore = compositeScore;
-        bestHospitalId = hospital.id;
-      }
-    });
-
-    if (bestHospitalId !== selectedHospital) {
-      setSelectedHospital(bestHospitalId);
-      if (!silent) {
-        const hName = language === 'hi' 
-          ? hospitalData.find(h => h.id === bestHospitalId)?.name_hi 
-          : hospitalData.find(h => h.id === bestHospitalId)?.name || 'nearest hospital';
-        showNotification(t('optimal_destination'), `${t('ai_selected_info').replace('hospital', hName || '')}`, 'success');
-      }
-    }
-    return bestHospitalId;
-  }, [hospitalData, selectedHospital, showNotification, setSelectedHospital, manualHospitalSelection, language, t]);
-
-  const resetGoldenHour = useCallback(() => {
-    setGoldenHour(3600);
-    setCriticalEventActive(false);
-    ghStartTime.current = null;
-    accumulatedSimMs.current = 0;
-  }, []);
-
-  const stopGoldenHour = useCallback(() => {
-    setCriticalEventActive(false);
-  }, []);
-
+  const resetGoldenHour = useCallback(() => setGoldenHour(3600), []);
   const startCriticalEvent = useCallback((severity: 'high' | 'medium' = 'medium') => {
-    setPatientType('critical');
-    setPatientSeverity(severity);
-    setPatientCondition(severity === 'high' ? 'critical' : 'stable');
-    // Dynamic Golden Hour: 30 mins for High severity, 60 mins for Medium
-    const initialSeconds = severity === 'high' ? 1800 : 3600;
-    setGoldenHour(initialSeconds);
     setCriticalEventActive(true);
-    ghStartTime.current = Date.now();
-    accumulatedSimMs.current = 0;
-  }, []);
+    setPatientCondition('deteriorating');
+    showNotification('CRITICAL UPDATE', `Patient vitals are ${severity === 'high' ? 'crashing' : 'unstable'}!`, 'danger');
+  }, [showNotification]);
 
-  const triggerSOS = useCallback(() => {
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-        setEmergencyCoords(coords);
-        startCriticalEvent('high');
-        const optimalHospital = findOptimalHospital(coords, true);
-        setSelectedHospital(optimalHospital);
-        setNavigating(true);
-        setMissionStage('to_patient');
-        showNotification('🚨 SOS TRIGGERED', 'GPS coordinates sent. Ambulance dispatched.', 'danger');
-      }, () => {
-        const coords: [number, number] = [30.3705, 78.4302];
-        setEmergencyCoords(coords);
-        startCriticalEvent('high');
-        const optimalHospital = findOptimalHospital(coords, true);
-        setSelectedHospital(optimalHospital);
-        setNavigating(true);
-        setMissionStage('to_patient');
-        showNotification('🚨 SOS FALLBACK', 'Network location used. Ambulance dispatched.', 'danger');
-      });
-    }
-  }, [findOptimalHospital, startCriticalEvent, setEmergencyCoords, setNavigating, showNotification, setMissionStage, setSelectedHospital]);
-
-  useEffect(() => {
-    if (patientType !== 'critical' || !criticalEventActive || paused) return;
-
-    // Condition-based decay: critical patients lose time faster
-    const msPerTick = 1000; // fire every real second
-
-    const interval = setInterval(() => {
-      setGoldenHour(prev => {
-        let aiScale = patientCondition === 'critical' ? 1.5 : patientCondition === 'deteriorating' ? 1.3 : 1.0;
-        const v = vitalsRef.current;
-        // AI Optimization: SpO2 drop or extreme Heart Rates aggressively drain the countdown
-        if (v.spo2 < 90) aiScale += 0.8;
-        if (v.heartRate > 115 || v.heartRate < 50) aiScale += 0.6;
-        
-        const decayPerTick = simSpeedMultiplier * aiScale;
-        const next = Math.max(0, prev - decayPerTick);
-        if (next <= 0) setCriticalEventActive(false);
-        return Math.floor(next);
-      });
-    }, msPerTick);
-
-    return () => clearInterval(interval);
-  }, [patientType, criticalEventActive, paused, patientCondition, simSpeedMultiplier]);
-
-  useEffect(() => {
-    const rains = ['None', 'Light', 'Moderate', 'Light', 'None'];
-    const interval = setInterval(() => {
-      const temps = [6, 7, 8, 9, 10, 11, 12];
-      const vis = [1.2, 1.5, 1.8, 2.1, 2.4, 2.8, 3.2];
-      const winds = [18, 20, 22, 25, 28, 30, 15];
-      setLiveTemp(temps[Math.floor(Math.random() * temps.length)]);
-      setLiveVisibility(vis[Math.floor(Math.random() * vis.length)]);
-      setLiveWind(winds[Math.floor(Math.random() * winds.length)]);
-      setLiveRain(rains[Math.floor(Math.random() * rains.length)]);
-
-      // Vitals simulation
-      if (missionStage !== 'idle') {
-        const hrBase = patientCondition === 'critical' ? 110 : patientCondition === 'deteriorating' ? 95 : 80;
-        setHeartRate(Math.floor(hrBase + Math.random() * 10));
-        const spo2Base = patientCondition === 'critical' ? 88 : patientCondition === 'deteriorating' ? 92 : 97;
-        setSpo2(Math.floor(spo2Base + Math.random() * 3));
-      }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [missionStage, patientCondition]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setHospitalData(prev => prev.map(h => {
-        const newBeds = { ...h.beds };
-        (Object.keys(newBeds) as Array<keyof typeof newBeds>).forEach(type => {
-          if (Math.random() < 0.1) {
-            const change = Math.random() < 0.5 ? -1 : 1;
-            newBeds[type] = {
-              ...newBeds[type],
-              available: Math.max(0, Math.min(newBeds[type].total, newBeds[type].available + change))
-            };
-          }
-        });
-        return { ...h, beds: newBeds };
-      }));
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    if (!manualHospitalSelection) setCurrentRouteIdx(0);
-  }, [selectedHospital, manualHospitalSelection]);
+  const stopGoldenHour = useCallback(() => setGoldenHour(0), []);
 
   const calculateDistance = useCallback((p1: [number, number], p2: [number, number]) => {
-    const R = 6371e3; // meters
-    const phi1 = p1[0] * Math.PI/180;
-    const phi2 = p2[0] * Math.PI/180;
-    const deltaPhi = (p2[0]-p1[0]) * Math.PI/180;
-    const deltaLambda = (p2[1]-p1[1]) * Math.PI/180;
-
-    const a = Math.sin(deltaPhi/2) * Math.sin(deltaPhi/2) +
-              Math.cos(phi1) * Math.cos(phi2) *
-              Math.sin(deltaLambda/2) * Math.sin(deltaLambda/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-    return R * c; // in meters
+    return Math.sqrt(Math.pow(p1[0] - p2[0], 2) + Math.pow(p1[1] - p2[1], 2));
   }, []);
 
-  // Automated Ambulance Allocation Logic
-  useEffect(() => {
-    if (activeRole === 'patient' && sosStatus === 'requested' && emergencyCoords && !activeAmbulanceId) {
-      let nearestId: string | null = null;
-      let minDistance = Infinity;
+  const findOptimalHospital = useCallback((coords: [number, number], silent = false) => {
+    let best = 'aiims_rishikesh';
+    let minDist = Infinity;
+    hospitalData.forEach(h => {
+      const d = calculateDistance(coords, [h.lat, h.lng]);
+      if (d < minDist && h.beds > 0) {
+        minDist = d;
+        best = h.id;
+      }
+    });
+    if (!silent) showNotification('Optimal Routing', `Nearest available trauma center: ${hospitalData.find(h=>h.id===best)?.name}`, 'info');
+    return best;
+  }, [hospitalData, calculateDistance, showNotification]);
 
+  const triggerSOS = useCallback(() => {
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+          setEmergencyCoords(coords);
+          setSosStatus('requested');
+          showNotification('SOS BROADCASTED', 'Searching for nearest available ambulance...', 'danger');
+        },
+        (err) => {
+          console.warn('GPS Error, using mock location:', err);
+          const mockCoords: [number, number] = [30.0668, 78.2973];
+          setEmergencyCoords(mockCoords);
+          setSosStatus('requested');
+          showNotification('SOS (MOCK GPS)', 'Broadcasted from emergency coordinates.', 'danger');
+        }
+      );
+    }
+  }, [showNotification]);
+
+  useEffect(() => {
+    if (sosStatus === 'requested' && emergencyCoords && activeAmbulanceId === null) {
+      let nearestId = null;
+      let minDistance = Infinity;
+      
       ambulances.forEach(amb => {
         if (amb.status === 'available') {
-          const dist = calculateDistance([amb.lat, amb.lng], emergencyCoords);
+          const dist = calculateDistance(emergencyCoords, [amb.lat, amb.lng]);
           if (dist < minDistance) {
             minDistance = dist;
             nearestId = amb.id;
@@ -391,7 +245,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         showNotification('Ambulance Allocated', `Unit ${targetId} has been dispatched to your location.`, 'success');
       }
     }
-  }, [sosStatus, emergencyCoords, activeAmbulanceId, ambulances, activeRole, calculateDistance, setAmbulances, setActiveAmbulanceId, setSosStatus, showNotification]);
+  }, [sosStatus, emergencyCoords, activeAmbulanceId, ambulances, calculateDistance, showNotification]);
 
   // Continuous GPS Tracking (Driver & Patient)
   useEffect(() => {
@@ -436,16 +290,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     return () => { if (watchId !== null) navigator.geolocation.clearWatch(watchId); };
-  }, [activeRole, isLiveGPS, sosStatus, activeAmbulanceId]);
+  }, [activeRole, isLiveGPS, sosStatus, activeAmbulanceId, showNotification]);
 
-  // Synchronization and Real-time Broadcasting Logic
+  // Helper to emit events to the relay server
+  const emitSync = useCallback((type: string, payload: any) => {
+    syncSocket.current?.emit('teros_sync', { type, payload });
+  }, []);
+
+  // Synchronization and Real-time Broadcasting Logic (Socket.io for Cross-Device Support)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
-    syncChannel.current = new BroadcastChannel('teros_live_sync');
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_SERVER_URL || 'http://localhost:4000';
+    syncSocket.current = io(socketUrl);
     
-    syncChannel.current.onmessage = (event) => {
-      const { type, payload } = event.data;
+    syncSocket.current.on('connect', () => {
+      console.log('Connected to Teros Sync Server');
+      showNotification('Sync Connected', 'Real-time cross-device link active.', 'success');
+    });
+
+    syncSocket.current.on('teros_sync', (data: { type: string; payload: any }) => {
+      const { type, payload } = data;
       switch (type) {
         case 'UPDATE_DRIVER_LOCATION':
           setAmbulances(prev => prev.map(a => a.id === payload.id ? { ...a, lat: payload.lat, lng: payload.lng } : a));
@@ -459,7 +324,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (payload.activeAmbulanceId) setActiveAmbulanceId(payload.activeAmbulanceId);
           if (payload.selectedHospital) setSelectedHospital(payload.selectedHospital);
           
-          // Sync missionStage for map routing
           if (payload.status === 'dispatched') {
             setNavigating(true);
             setMissionStage('to_patient');
@@ -481,46 +345,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setTrafficLayer(payload.trafficLayer);
           break;
       }
+    });
+
+    return () => {
+      syncSocket.current?.disconnect();
     };
+  }, [isLiveGPS, activeAmbulanceId, showNotification]);
 
-    return () => syncChannel.current?.close();
-  }, [isLiveGPS, activeAmbulanceId]);
-
+  // Outgoing Emitters
   useEffect(() => {
     if (activeRole === 'driver' && driverCoords) {
-      // Throttle/Gate broadcasts to prevent saturating the channel in simulation mode
-      const payload = { id: activeAmbulanceId || 'amb1', lat: driverCoords[0], lng: driverCoords[1] };
-      syncChannel.current?.postMessage({ type: 'UPDATE_DRIVER_LOCATION', payload });
+      emitSync('UPDATE_DRIVER_LOCATION', { id: activeAmbulanceId || 'amb1', lat: driverCoords[0], lng: driverCoords[1] });
     }
-  }, [driverCoords, activeRole, activeAmbulanceId]);
+  }, [driverCoords, activeRole, activeAmbulanceId, emitSync]);
 
   useEffect(() => {
     if (activeRole === 'patient' && emergencyCoords) {
-      syncChannel.current?.postMessage({ type: 'UPDATE_EMERGENCY_COORDS', payload: emergencyCoords });
+      emitSync('UPDATE_EMERGENCY_COORDS', emergencyCoords);
     }
-  }, [emergencyCoords, activeRole]);
+  }, [emergencyCoords, activeRole, emitSync]);
 
   useEffect(() => {
-    syncChannel.current?.postMessage({ 
-      type: 'UPDATE_SOS_STATUS', 
-      payload: { status: sosStatus, activeAmbulanceId, selectedHospital } 
-    });
-  }, [sosStatus, activeAmbulanceId, selectedHospital]);
+    emitSync('UPDATE_SOS_STATUS', { status: sosStatus, activeAmbulanceId, selectedHospital });
+  }, [sosStatus, activeAmbulanceId, selectedHospital, emitSync]);
 
   useEffect(() => {
     if (activeRole === 'admin' || activeRole === 'simulation') {
-      syncChannel.current?.postMessage({ 
-        type: 'UPDATE_MAP_LAYERS', 
-        payload: { terrain, weatherLayer, trafficLayer } 
-      });
+      emitSync('UPDATE_MAP_LAYERS', { terrain, weatherLayer, trafficLayer });
     }
-  }, [terrain, weatherLayer, trafficLayer, activeRole]);
+  }, [terrain, weatherLayer, trafficLayer, activeRole, emitSync]);
 
   useEffect(() => {
     if (activeRole === 'hospital' || activeRole === 'admin') {
-      syncChannel.current?.postMessage({ type: 'UPDATE_HOSPITAL_DATA', payload: hospitalData });
+      emitSync('UPDATE_HOSPITAL_DATA', hospitalData);
     }
-  }, [hospitalData, activeRole]);
+  }, [hospitalData, activeRole, emitSync]);
 
   return (
     <AppContext.Provider value={{
