@@ -4,7 +4,7 @@
 #include "../geo/Telemetry.h"
 #include "../routing/AIRoutingEngine.h"
 #include <iostream>
-#include <uuid/uuid.h> // Though not fully cross-platform, we can mock UUID later. We'll use simple strings for demo.
+
 
 using nlohmann::json;
 using websocketpp::lib::placeholders::_1;
