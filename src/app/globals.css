@@ -1,6 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
-
 :root {
+  /* Premium Typography System */
+  --font-sans: "Helvetica Neue", "Helvetica", "Arial", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Space Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+
   --primary: #3B82F6;
   --primary-hover: #2563EB;
   --primary-light: rgba(59, 130, 246, 0.1);
@@ -30,7 +32,12 @@
   --radius: 12px;
   --radius-lg: 20px;
   --radius-full: 9999px;
-  --mono: 'Space Mono', monospace;
+
+  /* Mobile Safe Areas */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 [data-theme='dark'] {
@@ -48,7 +55,8 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: 'Inter', -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
@@ -56,8 +64,35 @@ body {
   color: var(--text);
   overflow: hidden;
   height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for mobile browsers */
   width: 100vw;
+  font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  touch-action: manipulation; /* Optimize for mobile touch */
+}
+
+/* Consistent Premium Scrollbars across OS */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* Firefox scrollbar compatibility */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 .glass-panel {
@@ -77,7 +112,7 @@ body {
 
 /* Base Headings & Texts */
 h1, h2, h3, h4, h5, h6 { font-weight: 700; letter-spacing: -0.02em; }
-.font-mono { font-family: 'Space Mono', monospace; }
+.font-mono { font-family: var(--font-mono); }
 
 /* Animations */
 @keyframes pulseGlow {
@@ -166,6 +201,19 @@ button {
     z-index: 2000 !important;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
     overflow-y: auto;
+    padding-bottom: 80px !important; /* Space for sticky button */
+  }
+  .panel-sticky-footer {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    padding: 16px 24px !important;
+    background: var(--surface);
+    backdrop-filter: var(--backdrop-blur);
+    -webkit-backdrop-filter: var(--backdrop-blur);
+    border-top: 1px solid var(--border);
+    z-index: 2010 !important;
   }
   .header-left .logo-text { font-size: 16px !important; }
   .header-left .logo-sub { display: none !important; }
@@ -181,15 +229,19 @@ button {
 
 @media (max-width: 600px) {
   .nav-panel {
-    padding: 10px !important;
+    bottom: 20px !important;
+    padding: 16px !important;
+    gap: 12px !important;
+    width: calc(100% - 24px) !important;
   }
-  .nav-items {
-    gap: 10px !important;
+  .nav-panel button {
+    padding: 8px 12px !important;
+    font-size: 11px !important;
   }
-  .nav-item span {
-    display: none !important;
-  }
-  .header-right .btn-text {
+}
+
+@media (max-width: 480px) {
+  .nav-panel .btn-text {
     display: none !important;
   }
 }

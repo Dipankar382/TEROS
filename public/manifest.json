@@ -1,0 +1,21 @@
+{
+  "name": "TEROS — Emergency Healthcare Routing",
+  "short_name": "TEROS",
+  "description": "Advanced AI-driven emergency routing and navigation system.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3063/3063176.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3063/3063176.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

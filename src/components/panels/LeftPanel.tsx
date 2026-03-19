@@ -191,10 +191,9 @@ export default function LeftPanel() {
               </div>
             </section>
 
-            {/* Location Intel */}
             <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ fontSize: '11px', fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>
-                Emergency Location
+                Emergency Scenario
               </div>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -213,19 +212,6 @@ export default function LeftPanel() {
                     <option key={m.id} value={m.id}>{m.name}</option>
                   ))}
                 </select>
-
-                <div style={{ position: 'relative' }}>
-                  <input type="text" value={pickupLocation} onChange={e => setPickupLocation(e.target.value)} placeholder="Type location..." style={{
-                    width: '100%', padding: '12px 14px', borderRadius: 'var(--radius-sm)',
-                    fontSize: '13px', color: 'var(--text)', background: 'var(--surface)', border: '1px solid var(--border)', outline: 'none',
-                  }} />
-                  <button onClick={handleLocateEmergency} style={{
-                    position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: '4px'
-                  }}>
-                    <MapPin size={16} />
-                  </button>
-                </div>
               </div>
             </section>
 
@@ -400,17 +386,21 @@ export default function LeftPanel() {
               </div>
             </div>
 
-            {/* Dispatch Button */}
-            <button onClick={handleDispatch} style={{
-              width: '100%', padding: '12px', 
-              background: navigating ? 'var(--success)' : 'var(--primary)', 
-              color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', 
-              fontSize: '14px', fontWeight: 700, cursor: 'pointer', marginTop: '16px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-            }}>
-              <Navigation size={16} />
-              {navigating ? (missionStage === 'to_patient' ? t('en_route_patient') : t('transporting_hospital')) : t('start_dispatch')}
-            </button>
+            {/* Dispatch Button (Sticky on mobile) */}
+            <div className="panel-sticky-footer">
+              <button onClick={handleDispatch} style={{
+                width: '100%', padding: '14px', 
+                background: navigating ? 'var(--success)' : 'var(--primary)', 
+                color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', 
+                fontSize: '15px', fontWeight: 800, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                transition: 'all 0.3s'
+              }}>
+                <Navigation size={18} />
+                {navigating ? (missionStage === 'to_patient' ? t('en_route_patient') : t('transporting_hospital')) : t('start_dispatch')}
+              </button>
+            </div>
 
             {/* Advanced Telemetry Accordion */}
             {navigating && (

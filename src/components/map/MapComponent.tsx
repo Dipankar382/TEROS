@@ -14,7 +14,7 @@ const ambulanceStation: [number, number] = [30.1200, 78.2500];
 function MapBoundsController({ routeParams }: { routeParams: number[][] | null }) {
   const map = useMap();
   useEffect(() => {
-    if (routeParams && routeParams.length > 1) {
+    if (typeof window !== 'undefined' && routeParams && routeParams.length > 1) {
       const bounds = L.latLngBounds(routeParams as L.LatLngExpression[]);
       map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
     }
@@ -53,8 +53,6 @@ export default function MapComponent() {
   const [weatherLayer, setWeatherLayer] = useState(false);
   const [trafficLayer, setTrafficLayer] = useState(false);
   const [centerTrigger, setCenterTrigger] = useState(0);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [completedPathTrace, setCompletedPathTrace] = useState<[number, number][]>([]);
 
@@ -106,7 +104,7 @@ export default function MapComponent() {
           delay: Math.round((newLevel / 100) * 8)
         };
       }));
-    }, 12000); // Slower shuffle for road segments
+    }, 30000); // Slower shuffle for road segments to save CPU
 
     return () => clearInterval(interval);
   }, []);
@@ -393,31 +391,6 @@ export default function MapComponent() {
     }
   }, [navigating, paused, missionStage, ambulanceProgress, selectedHospital, routeSwitchModalOpen, patientType, t, setRouteSwitchModalOpen, setPaused, setCurrentObstacle, showNotification, hospitalData, toHospitalPath, toPatientPath, setToHospitalPath, setToPatientPath, setAmbulanceProgress, setSelectedHospital, emergencyCoords]);
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const q = e.target.value;
-    setSearchQuery(q);
-    if (q.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    const filteredHospitals = hospitalData.filter(h => 
-      h.name.toLowerCase().includes(q.toLowerCase()) || (h.name_hi && h.name_hi.includes(q))
-    ).map(h => ({ ...h, type: 'hospital' }));
-    
-    const filteredEmergencies = mockEmergencies.filter(e => 
-      e.name.toLowerCase().includes(q.toLowerCase())
-    ).map(e => ({ ...e, type: 'emergency' }));
-
-    setSearchResults([...filteredHospitals, ...filteredEmergencies]);
-  };
-
-  const handleSearchResultClick = (item: any) => {
-    if (mapInstance) {
-      mapInstance.setView([item.lat, item.lng], 16);
-    }
-    setSearchQuery('');
-    setSearchResults([]);
-  };
 
   const tileUrl = offlineMode
     ? 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png'
@@ -427,70 +400,23 @@ export default function MapComponent() {
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      {/* Map Overlay Controls */}
+      {/* Map Overlay Controls - Optimized for all platforms */}
       <div style={{
-        position: 'absolute', top: '16px', left: '16px', right: '16px',
-        zIndex: 1000, display: 'flex', justifyContent: 'space-between',
+        position: 'absolute', 
+        top: 'calc(16px + var(--safe-top))', 
+        right: '16px',
+        zIndex: 1000, 
+        display: 'flex', 
+        flexDirection: 'column',
+        gap: '8px',
         pointerEvents: 'none',
       }}>
-        <div style={{
-          background: 'var(--surface-solid)', borderRadius: '10px', padding: '10px 14px',
-          boxShadow: '0 8px 30px rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', gap: '8px',
-          width: '300px', border: '1px solid var(--border-strong)',
-          pointerEvents: 'auto',
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column',
+          gap: '8px', 
+          pointerEvents: 'auto' 
         }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B92A0" strokeWidth="2">
-            <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
-          </svg>
-          <input 
-            type="text" 
-            value={searchQuery}
-            onChange={handleSearchChange}
-            placeholder={t('search_placeholder')} 
-            style={{ border: 'none', outline: 'none', fontSize: '13px', flex: 1, color: 'var(--text)', background: 'transparent' }} 
-          />
-        </div>
-
-        {/* Search Results Dropdown */}
-        {searchResults.length > 0 && (
-          <div style={{
-            position: 'absolute', top: '70px', left: '16px', width: '300px',
-            background: 'var(--surface-solid)', borderRadius: '10px',
-            boxShadow: '0 8px 30px rgba(0,0,0,0.2)', padding: '5px 0',
-            border: '1px solid var(--border-strong)', zIndex: 1100,
-            overflowY: 'auto', maxHeight: '300px', pointerEvents: 'auto'
-          }}>
-            {searchResults.map(item => (
-              <div 
-                key={item.id}
-                onClick={() => handleSearchResultClick(item)}
-                style={{
-                  padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)',
-                  fontSize: '13px', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px'
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-muted)')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-              >
-                <span style={{ fontSize: '16px' }}>{item.type === 'hospital' ? '🏥' : '⚠️'}</span>
-                <span>{language === 'hi' && item.name_hi ? item.name_hi : item.name}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {searchQuery.length >= 2 && searchResults.length === 0 && (
-          <div style={{
-            position: 'absolute', top: '70px', left: '16px', width: '300px',
-            background: 'var(--surface-solid)', borderRadius: '10px', padding: '12px 14px',
-            fontSize: '12px', color: 'var(--text-muted)', border: '1px solid var(--border-strong)',
-            pointerEvents: 'auto'
-          }}>
-            {t('no_results')}
-          </div>
-        )}
-
-
-        <div style={{ display: 'flex', gap: '6px', pointerEvents: 'auto' }}>
           <button onClick={() => setTerrain(!terrain)} style={ctrlBtnStyle(terrain)} title="Terrain View">⛰️</button>
           <button onClick={() => setWeatherLayer(!weatherLayer)} style={ctrlBtnStyle(weatherLayer)} title="Weather Overlay">🌧️</button>
           <button onClick={() => setTrafficLayer(!trafficLayer)} style={ctrlBtnStyle(trafficLayer)} title="Traffic Layer">🚗</button>
@@ -604,16 +530,9 @@ export default function MapComponent() {
                 weight: isHeavy ? 6 : isModerate ? 4 : 3,
                 opacity: 0.7,
                 dashArray: isHeavy ? '4, 10' : undefined,
+                interactive: false, // Set to false for performance if popup is not needed, or true if it is.
               }}
-            >
-              <Popup>
-                <div style={{ fontWeight: 800, color }}>
-                  {isHeavy ? '🔴 Heavy Congestion' : isModerate ? '🟡 Moderate Traffic' : '🟢 Fluid Traffic'}
-                </div>
-                <div style={{ fontSize: '12px', fontWeight: 600 }}>Traffic Level: {Math.round(seg.level)}%</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>AI predicts {seg.delay} min delay</div>
-              </Popup>
-            </Polyline>
+            />
           );
         })}
       </MapContainer>

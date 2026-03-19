@@ -27,6 +27,7 @@ export default function MissionTelemetryOverlay() {
   const visibilityRisk = Math.max(0, Math.min(100, (1 - liveVisibility / 5) * 100));
   const rainRisk = liveRain === 'Heavy' ? 90 : liveRain === 'Moderate' ? 55 : liveRain === 'Light' ? 25 : 10;
   const landslideRisk = Math.round(rainRisk * 0.7 + (liveAltitude / 2000) * 30);
+  const fogRisk = Math.max(0, 100 - liveVisibility * 20);
 
   return (
     <div className="telemetry-overlay glass-card" style={{
@@ -96,6 +97,13 @@ export default function MissionTelemetryOverlay() {
             <div style={{ height: '4px', background: 'var(--surface-alt)', borderRadius: '2px', overflow: 'hidden', border: '1px solid var(--border)' }}>
               <div style={{ height: '100%', width: `${landslideRisk}%`, background: landslideRisk > 60 ? 'var(--critical)' : 'var(--success)', transition: 'width 1s cubic-bezier(0.16, 1, 0.3, 1)' }} />
             </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 700 }}>
+            <span style={{ color: 'var(--text-muted)' }}>FOG DENSITY</span>
+            <span style={{ color: fogRisk > 70 ? 'var(--critical)' : fogRisk > 40 ? 'var(--warning)' : 'var(--success)' }}>
+              {Math.round(fogRisk)}%
+            </span>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 700 }}>
