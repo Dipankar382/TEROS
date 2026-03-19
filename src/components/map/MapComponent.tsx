@@ -15,8 +15,14 @@ function MapBoundsController({ routeParams }: { routeParams: number[][] | null }
   const map = useMap();
   useEffect(() => {
     if (typeof window !== 'undefined' && routeParams && routeParams.length > 1) {
-      const bounds = L.latLngBounds(routeParams as L.LatLngExpression[]);
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+      try {
+        const bounds = L.latLngBounds(routeParams as L.LatLngExpression[]);
+        if (bounds.isValid()) {
+          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15, animate: false });
+        }
+      } catch (e) {
+        console.error('MapBoundsController Error:', e);
+      }
     }
   }, [routeParams, map]);
   return null;
@@ -26,8 +32,12 @@ function MapBoundsController({ routeParams }: { routeParams: number[][] | null }
 function CenterOnAmbulance({ trigger, markerRef }: { trigger: number; markerRef: React.RefObject<L.Marker | null> }) {
   const map = useMap();
   useEffect(() => {
-    if (markerRef.current) {
-      map.setView(markerRef.current.getLatLng(), 15);
+    if (markerRef.current && typeof map.setView === 'function') {
+      try {
+        map.setView(markerRef.current.getLatLng(), 15, { animate: false });
+      } catch (e) {
+        console.error('CenterOnAmbulance Error:', e);
+      }
     }
   }, [trigger, markerRef, map]);
   return null;
@@ -154,12 +164,15 @@ export default function MapComponent() {
 
   // Track path switches to maintain a visual history of the route driven so far
   useEffect(() => {
-    if (prevPathRef.current && prevPathRef.current !== currentActivePath) {
+    if (prevPathRef.current && prevPathRef.current !== currentActivePath && Array.isArray(prevPathRef.current)) {
       if (progressRef.current > 0 && progressRef.current < 1) {
-        setCompletedPathTrace(prev => [
-          ...prev, 
-          ...(prevPathRef.current!.slice(0, Math.ceil(progressRef.current * prevPathRef.current!.length)) as [number, number][])
-        ]);
+        const sliceEnd = Math.ceil(progressRef.current * prevPathRef.current.length);
+        if (sliceEnd > 0) {
+          setCompletedPathTrace(prev => [
+            ...prev, 
+            ...(prevPathRef.current!.slice(0, sliceEnd) as [number, number][])
+          ]);
+        }
       }
     }
     prevPathRef.current = currentActivePath;
@@ -183,9 +196,11 @@ export default function MapComponent() {
     fetch(`https://router.project-osrm.org/route/v1/driving/${sLng},${sLat};${eLng},${eLat}?overview=full&geometries=geojson`)
       .then(r => r.json())
       .then(data => {
-        if (data.code === 'Ok' && data.routes?.[0]) {
+        if (data.code === 'Ok' && data.routes?.[0]?.geometry?.coordinates) {
           const coords: [number, number][] = data.routes[0].geometry.coordinates.map((c: number[]) => [c[1], c[0]]);
-          setToPatientPath(coords);
+          if (coords.length > 0) {
+            setToPatientPath(coords);
+          }
         } else {
           showNotification('Navigation Error', 'Could not find road path to incident site.', 'danger');
         }
@@ -202,9 +217,11 @@ export default function MapComponent() {
     fetch(`https://router.project-osrm.org/route/v1/driving/${eLng},${eLat};${hospitalInfo.lng},${hospitalInfo.lat}?overview=full&geometries=geojson`)
       .then(r => r.json())
       .then(data => {
-        if (data.code === 'Ok' && data.routes?.[0]) {
+        if (data.code === 'Ok' && data.routes?.[0]?.geometry?.coordinates) {
           const coords: [number, number][] = data.routes[0].geometry.coordinates.map((c: number[]) => [c[1], c[0]]);
-          setToHospitalPath(coords);
+          if (coords.length > 0) {
+            setToHospitalPath(coords);
+          }
         }
       })
       .catch(err => console.error('Stage 2 Fetch Error', err));
@@ -273,10 +290,12 @@ export default function MapComponent() {
         const progressInPath = progressRef.current * totalSegs;
         const segIdx = Math.min(Math.floor(progressInPath), totalSegs - 1);
         const seg = progressInPath - segIdx;
-        const lat = currentActivePath[segIdx][0] + (currentActivePath[segIdx + 1][0] - currentActivePath[segIdx][0]) * seg;
-        const lng = currentActivePath[segIdx][1] + (currentActivePath[segIdx + 1][1] - currentActivePath[segIdx][1]) * seg;
-        ambulanceRef.current.setLatLng([lat, lng] as L.LatLngExpression);
-        setAmbulanceSpeed(Math.round(baseSpeedKmH + (Math.random() - 0.5) * 5));
+        const lat = (currentActivePath[segIdx]?.[0] ?? 0) + ((currentActivePath[segIdx + 1]?.[0] ?? 0) - (currentActivePath[segIdx]?.[0] ?? 0)) * seg;
+        const lng = (currentActivePath[segIdx]?.[1] ?? 0) + ((currentActivePath[segIdx + 1]?.[1] ?? 0) - (currentActivePath[segIdx]?.[1] ?? 0)) * seg;
+        if (!isNaN(lat) && !isNaN(lng)) {
+          ambulanceRef.current.setLatLng([lat, lng] as L.LatLngExpression);
+          setAmbulanceSpeed(Math.round(baseSpeedKmH + (Math.random() - 0.5) * 5));
+        }
       }
 
       animFrame.current = requestAnimationFrame(animate);
@@ -317,7 +336,7 @@ export default function MapComponent() {
             .then(data => {
               // Pick the first alternative if available, else the main route
               const picked = data.routes?.[1] ?? data.routes?.[0];
-              if (data.code === 'Ok' && picked) {
+              if (data.code === 'Ok' && picked?.geometry?.coordinates) {
                 const coords: [number, number][] = picked.geometry.coordinates.map((c: number[]) => [c[1], c[0]]);
                 const path: [number, number][] = [[fromLat, fromLng], ...coords];
                 setToPatientPath(path);
@@ -370,7 +389,7 @@ export default function MapComponent() {
             fetch(`https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${bestHospital.lng},${bestHospital.lat}?overview=full&geometries=geojson`)
               .then(r => r.json())
               .then(data => {
-                if (data.code === 'Ok' && data.routes?.[0]) {
+                if (data.code === 'Ok' && data.routes?.[0]?.geometry?.coordinates) {
                   const coords: [number, number][] = data.routes[0].geometry.coordinates.map((c: number[]) => [c[1], c[0]]);
                   setToHospitalPath([[fromLat, fromLng], ...coords]);
                   setAmbulanceProgress(0);

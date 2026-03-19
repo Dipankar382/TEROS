@@ -33,13 +33,19 @@ function formatDistance(m: number) {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function interpolateLivePos(path: number[][], progress: number): [number, number] | null {
-  if (!path || path.length < 2) return null;
+  if (!path || !Array.isArray(path) || path.length < 2) return null;
   const totalSegs = path.length - 1;
-  const prog = progress * totalSegs;
+  const prog = Math.max(0, Math.min(1, progress)) * totalSegs;
   const segIdx = Math.min(Math.floor(prog), totalSegs - 1);
   const segProg = prog - segIdx;
-  const lat = path[segIdx][0] + (path[segIdx + 1][0] - path[segIdx][0]) * segProg;
-  const lng = path[segIdx][1] + (path[segIdx + 1][1] - path[segIdx][1]) * segProg;
+  
+  const p1 = path[segIdx];
+  const p2 = path[segIdx + 1];
+  
+  if (!p1 || !p2) return null;
+
+  const lat = p1[0] + (p2[0] - p1[0]) * segProg;
+  const lng = p1[1] + (p2[1] - p1[1]) * segProg;
   return [lat, lng];
 }
 
