@@ -2,6 +2,14 @@
 #include "../core/GlobalState.h"
 #include "../core/StateMachine.h"
 #include <iostream>
+#include <chrono>
+#include <iomanip>
+
+void log_with_time(const std::string& msg) {
+    auto now = std::chrono::system_clock::now();
+    auto in_time_t = std::chrono::system_clock::to_time_t(now);
+    std::cout << "[" << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X") << "] " << msg << std::endl;
+}
 
 
 using nlohmann::json;
@@ -28,11 +36,11 @@ void WebsocketServer::run(uint16_t port) {
 }
 
 void WebsocketServer::on_open(websocketpp::connection_hdl hdl) {
-    std::cout << "[WebsocketServer] Connection opened" << std::endl;
+    log_with_time("[WebsocketServer] Connection opened");
 }
 
 void WebsocketServer::on_close(websocketpp::connection_hdl hdl) {
-    std::cout << "[WebsocketServer] Connection closed" << std::endl;
+    log_with_time("[WebsocketServer] Connection closed");
     User* user = GlobalState::getInstance().getUserByHdl(hdl);
     if (user) {
         GlobalState::getInstance().removeUser(user->id);
@@ -60,6 +68,10 @@ void WebsocketServer::on_message(websocketpp::connection_hdl hdl, server::messag
             handle_map_layers_update(hdl, payload);
         } else if (type == "UPDATE_HOSPITAL_DATA") {
             handle_hospital_data_update(hdl, payload);
+        } else if (type == "HEARTBEAT") {
+            // Echo back to keep connection alive
+            json pong = {{"type", "HEARTBEAT_PONG"}};
+            m_server.send(hdl, pong.dump(), websocketpp::frame::opcode::text);
         }
     } catch (const json::parse_error& e) {
         std::cerr << "[WebsocketServer] JSON parse error: " << e.what() << std::endl;
@@ -129,7 +141,7 @@ void WebsocketServer::handle_sos(websocketpp::connection_hdl hdl, const json& pa
     trip.state = TripState::DISPATCHED;
     GlobalState::getInstance().addTrip(trip);
 
-    std::cout << "[SOS] Patient " << patient->id << " at " << lat << "," << lng << std::endl;
+    log_with_time("[SOS] Patient " + patient->id + " triggered at coordinates.");
 
     // Broadcast SOS_ALERT to ALL connected clients (Drivers, Admins, Hospitals)
     // This is the primary event that triggers the Driver to see the patient on their map

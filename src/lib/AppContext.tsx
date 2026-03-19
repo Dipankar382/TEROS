@@ -183,6 +183,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [emergencyModalOpen, setEmergencyModalOpen] = useState(false);
   const [routeSwitchModalOpen, setRouteSwitchModalOpen] = useState(false);
   const [currentObstacle, setCurrentObstacle] = useState<string | null>(null);
+  
+  // High-Risk Mountain Scenarios: Tehri/THDC Landslide
+  useEffect(() => {
+    if (activeRole === 'simulation') {
+      const timer = setTimeout(() => {
+        setCurrentObstacle('Landslide detected near Bhagirathipuram Highland Route');
+        showNotification('HAZARD ALERT', 'Landslide blockage on mountain route. Calculating bypass...', 'danger');
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeRole, showNotification]);
 
   const mockEmergencies = [
     { id: 'e1', name: 'Trauma Case #1', lat: 30.0864, lng: 78.2676, description: 'Multiple collision near AIIMS gate.', severity: 'high' as const },
@@ -209,14 +220,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Golden Hour countdown logic
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: NodeJS.Timeout | null = null;
     if ((sosStatus === 'dispatched' || sosStatus === 'picked_up') && goldenHour > 0 && !paused) {
       timer = setInterval(() => {
         setGoldenHour(prev => Math.max(0, prev - 1));
       }, 1000);
     }
-    return () => clearInterval(timer);
-  }, [sosStatus, goldenHour, paused]);
+    return () => { if (timer) clearInterval(timer); };
+  }, [sosStatus, paused]); // Remove goldenHour from deps to prevent interval thrashing
 
   const calculateDistance = useCallback((p1: [number, number], p2: [number, number]) => {
     return Math.sqrt(Math.pow(p1[0] - p2[0], 2) + Math.pow(p1[1] - p2[1], 2));
@@ -244,7 +255,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
           setEmergencyCoords(coords);
           setSosStatus('requested');
-          emitSync('SOS_REQUEST', { latitude: coords[0], longitude: coords[1] });
+          emitSync('SOS_REQUEST', { 
+            latitude: coords[0], 
+            longitude: coords[1],
+            condition: patientCondition
+          });
           showNotification('SOS BROADCASTED', 'Searching for nearest available ambulance...', 'danger');
         },
         (err) => {
@@ -252,7 +267,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const mockCoords: [number, number] = [30.0668, 78.2973];
           setEmergencyCoords(mockCoords);
           setSosStatus('requested');
-          emitSync('SOS_REQUEST', { latitude: mockCoords[0], longitude: mockCoords[1] });
+          emitSync('SOS_REQUEST', { 
+            latitude: mockCoords[0], 
+            longitude: mockCoords[1],
+            condition: patientCondition 
+          });
           showNotification('SOS (MOCK GPS)', 'Broadcasted from emergency coordinates.', 'danger');
         }
       );
@@ -312,7 +331,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setDriverCoords(prev => {
               if (!prev) {
                 showNotification('GPS Fallback', 'Live location unavailable. Using fallback location.', 'info');
-                const fallback: [number, number] = [30.0687, 78.2950];
+                const fallback: [number, number] = [30.3715, 78.4305];
                 setAmbulances(ambs => ambs.map(a => a.id === (activeAmbulanceId || 'amb1') ? { ...a, lat: fallback[0], lng: fallback[1] } : a));
                 return fallback;
               }
@@ -320,24 +339,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             });
           }
         },
-        { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
       );
     } else if (activeRole === 'patient' && sosStatus !== 'idle') {
       watchId = navigator.geolocation.watchPosition(
         (pos) => {
           const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
           setEmergencyCoords(coords);
+          // Sync with server immediately
+          emitSync('UPDATE_EMERGENCY_COORDS', { latitude: coords[0], longitude: coords[1] });
         },
         (err) => {
-          // Silence GPS errors for patient to avoid console noise
           if (err.code === 1) {
             showNotification('GPS Access', 'Please enable location to track your position.', 'warning');
           } else {
              console.warn('Patient GPS Error, falling back.', err);
-             setEmergencyCoords(prev => prev || [30.0869, 78.2676]);
+             setEmergencyCoords(prev => prev || [30.3950, 78.4410]);
           }
         },
-        { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
       );
     }
 
@@ -367,6 +387,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       syncSocket.current.send(JSON.stringify({ type: 'AUTH', id: userIdRef.current, role: roleEnum }));
     }
   }, [activeRole]);
+
+  useEffect(() => {
+    const heartbeat = setInterval(() => {
+      emitSync('HEARTBEAT', {});
+    }, 15000);
+    return () => clearInterval(heartbeat);
+  }, [emitSync]);
 
   // STABLE WebSocket connection — deps are empty so it never reconnects on state changes
   useEffect(() => {
@@ -420,7 +447,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               if (data.latitude != null && data.longitude != null) {
                 setEmergencyCoords([data.latitude, data.longitude]);
                 setSosStatus('requested');
-                showNotification('🚨 SOS ALERT', `Patient ${data.patient_id} needs emergency assistance!`, 'danger');
+                setPatientCondition(data.condition || 'critical');
+                showNotification('🚨 SOS ALERT', `Incoming ${data.condition || 'Critical'} Emergency Request!`, 'danger');
+                
+                // Aggressive UX Alert for Driver
+                if (activeRoleRef.current === 'driver') {
+                  if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+                    window.navigator.vibrate([500, 200, 500, 200, 500]);
+                  }
+                  // Optional: play sound if browser allows
+                }
               }
               break;
 

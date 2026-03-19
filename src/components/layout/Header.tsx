@@ -59,10 +59,10 @@ export default function Header() {
           T
         </div>
         <div>
-          <h1 className="logo-text" style={{ fontSize: '17px', fontWeight: 700, margin: 0, letterSpacing: '-0.3px', color: 'var(--text)' }}>
-            <span style={{ color: 'var(--primary)' }}>TEROS</span>
+          <h1 className="logo-text" style={{ fontSize: '20px', fontWeight: 900, margin: 0, letterSpacing: '-0.5px', color: 'var(--text)' }}>
+            <span style={{ color: 'var(--primary)', textShadow: '0 0 20px rgba(27,115,232,0.3)' }}>TEROS</span>
           </h1>
-          <div className="logo-sub" style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1.5px', marginTop: '-2px' }}>
+          <div className="logo-sub" style={{ fontSize: '10px', color: 'var(--text)', opacity: 0.8, textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 700, marginTop: '-2px' }}>
             Emergency Healthcare Routing
           </div>
         </div>
@@ -86,8 +86,9 @@ export default function Header() {
         <div style={{
           display: 'flex', alignItems: 'center', gap: '6px',
           padding: '5px 12px', borderRadius: '20px',
-          fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px',
+          fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px',
           background: 'var(--success-light)', color: 'var(--success)',
+          border: '1px solid var(--success)'
         }}>
           <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success)', animation: 'pulseGlow 2s infinite' }} />
           SYSTEM LIVE
@@ -95,9 +96,9 @@ export default function Header() {
         <div style={{
           display: 'flex', alignItems: 'center', gap: '6px',
           padding: '5px 12px', borderRadius: '20px',
-          fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px',
+          fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px',
           background: 'var(--surface-alt)', color: 'var(--text-secondary)',
-          border: '1px solid var(--border)'
+          border: '1px solid var(--border-strong)'
         }}>
           {t('weather')}: LIVE
         </div>

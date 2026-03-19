@@ -8,7 +8,7 @@ export default function RoleSelector() {
   const { activeRole, setActiveRole } = useApp();
 
   const roles = [
-    { id: 'simulation', label: 'Exit Demo', icon: User, color: 'var(--text-muted)' },
+    { id: 'simulation', label: 'Exit Panel', icon: User, color: 'var(--text-muted)' },
     { id: 'patient', label: 'Patient', icon: User, color: 'var(--critical)' },
     { id: 'driver', label: 'Driver', icon: Navigation, color: 'var(--success)' },
     { id: 'hospital', label: 'Hospital', icon: HospitalIcon, color: 'var(--primary)' },
@@ -18,17 +18,24 @@ export default function RoleSelector() {
   return (
     <div style={{
       display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '6px', padding: '6px', 
-      background: 'rgba(255, 255, 255, 0.7)',
-      backdropFilter: 'blur(12px) saturate(180%)',
-      WebkitBackdropFilter: 'blur(12px) saturate(180%)',
-      borderRadius: '30px', 
-      border: '1px solid rgba(255, 255, 255, 0.3)', 
+      background: 'var(--surface)',
+      backdropFilter: 'var(--backdrop-blur)',
+      WebkitBackdropFilter: 'var(--backdrop-blur)',
+      borderRadius: 'var(--radius-lg)', 
+      border: '1px solid var(--border)', 
       margin: '0 auto',
       width: 'fit-content',
-      maxWidth: '100%',
-      boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
-      pointerEvents: 'auto'
+      maxWidth: 'calc(100% - 24px)',
+      boxShadow: 'var(--shadow-lg)',
+      pointerEvents: 'auto',
+      zIndex: 2500,
     }}>
+      <div className="role-grid" style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        gap: '4px',
+      }}>
       {roles.map((role) => {
         const Icon = role.icon;
         const isActive = activeRole === role.id;
@@ -37,10 +44,10 @@ export default function RoleSelector() {
             key={role.id}
             onClick={() => setActiveRole(role.id as any)}
             style={{
-              padding: '8px 16px', borderRadius: '25px', border: 'none',
-              background: isActive ? role.color : 'var(--surface-alt)',
-              color: isActive ? 'white' : 'var(--text)',
-              fontSize: '11px', fontWeight: 800, cursor: 'pointer',
+              padding: '8px 14px', borderRadius: '12px', border: 'none',
+              background: isActive ? role.color : 'transparent',
+              color: isActive ? 'white' : 'var(--text-secondary)',
+              fontSize: '11px', fontWeight: isActive ? 900 : 700, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
               transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
               boxShadow: isActive ? `0 4px 15px ${role.color}66` : 'none',
@@ -54,6 +61,7 @@ export default function RoleSelector() {
           </button>
         );
       })}
+      </div>
     </div>
   );
 }

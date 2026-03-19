@@ -33,13 +33,21 @@ export default function PatientRolePanel() {
         const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
         setEmergencyCoords(coords);
         setSosStatus('requested');
-        emitSync('SOS_REQUEST', { latitude: coords[0], longitude: coords[1] });
+        emitSync('SOS_REQUEST', { 
+          latitude: coords[0], 
+          longitude: coords[1],
+          condition: patientCondition 
+        });
         showNotification('🚨 SOS SENT', 'Your location has been shared with the nearest response unit.', 'danger');
       }, () => {
         const coords: [number, number] = [30.3950, 78.4410]; // Tehri Fallback
         setEmergencyCoords(coords);
         setSosStatus('requested');
-        emitSync('SOS_REQUEST', { latitude: coords[0], longitude: coords[1] });
+        emitSync('SOS_REQUEST', { 
+          latitude: coords[0], 
+          longitude: coords[1],
+          condition: patientCondition
+        });
         showNotification('🚨 SOS SENT', 'Location shared via network IP.', 'danger');
       });
     }

@@ -49,10 +49,15 @@
   --surface-solid: #0F172A;
   --surface-alt: #020617;
   --text: #F8FAFC;
-  --text-secondary: #E2E8F0;
+  --text-secondary: #CBD5E1;
   --text-muted: #94A3B8;
   --border: #1E293B;
   --border-strong: #334155;
+}
+
+::selection {
+  background: var(--primary);
+  color: #fff;
 }
 
 * {
@@ -260,5 +265,14 @@ button {
 @media (max-width: 480px) {
   .nav-panel .btn-text {
     display: none !important;
+  }
+  .role-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    width: 100% !important;
+  }
+  .role-grid button {
+    padding: 10px !important;
+    font-size: 10px !important;
   }
 }
