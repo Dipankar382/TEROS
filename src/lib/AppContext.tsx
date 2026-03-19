@@ -143,6 +143,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [activeAmbulanceId, setActiveAmbulanceId] = useState<string | null>(null);
   const [assignedDriverId, setAssignedDriverId] = useState<string | null>(null);
   const [ambulances, setAmbulances] = useState<any[]>([]);
+  const isRemoteUpdate = useRef(false);
 
   // New Mission Telemetry State
   const [score, setScore] = useState(92);
@@ -433,7 +434,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 showNotification('Patient Connected', 'A patient device has joined the network.', 'info');
               } else if (data.role === 'DRIVER') {
                 showNotification('Driver Connected', 'An ambulance driver has joined the network.', 'info');
-                // Dynamically add to fleet if not present
                 setAmbulances(prev => {
                   if (prev.find(a => a.id === data.id)) return prev;
                   return [...prev, { id: data.id, name: `Live Unit ${data.id.slice(-4)}`, lat: 30.3715, lng: 78.4305, status: 'available' }];
@@ -441,63 +441,59 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               }
               break;
 
-            // ─── CRITICAL: SOS_ALERT is what Drivers/Admins receive when a Patient calls for help ───
             case 'SOS_ALERT':
               if (data.latitude != null && data.longitude != null) {
-                // If I am a patient, I'm waiting for a driver to 'ACCEPT'
-                // If I am a driver, I see the notification to 'RESPOND'
+                isRemoteUpdate.current = true;
                 setEmergencyCoords([data.latitude, data.longitude]);
                 setSosStatus('requested');
                 setPatientCondition(data.condition || 'critical');
-                setActiveAmbulanceId(data.trip_id); // The trip ID connects us
+                setActiveAmbulanceId(data.trip_id);
                 showNotification('🚨 SOS ALERT', `Incoming ${data.condition || 'Critical'} Emergency Request!`, 'danger');
-                
-                // Aggressive UX Alert for Driver
                 if (activeRoleRef.current === 'driver') {
                   if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
                     window.navigator.vibrate([500, 200, 500, 200, 500]);
                   }
-                  // Optional: play sound if browser allows
                 }
+                setTimeout(() => { isRemoteUpdate.current = false; }, 50);
               }
               break;
 
             case 'SOS_ASSIGNED':
+              isRemoteUpdate.current = true;
               setSosStatus('dispatched');
               setAssignedDriverId(data.driver_id);
               if (activeRoleRef.current === 'patient') {
                 setActiveAmbulanceId(data.driver_id);
                 showNotification('SOS Accepted', 'A live ambulance is en route!', 'success');
               }
+              setTimeout(() => { isRemoteUpdate.current = false; }, 50);
               break;
 
             case 'FLEET_UPDATE':
+              isRemoteUpdate.current = true;
               setAmbulances(data.ambulances);
+              setTimeout(() => { isRemoteUpdate.current = false; }, 50);
               break;
 
             case 'TELEMETRY_UPDATE':
               if (data.latitude != null && data.longitude != null) {
-                setAmbulances(prev => {
-                  const existing = prev.find(a => a.id === data.driver_id);
-                  if (existing) {
-                    return prev.map(a => a.id === data.driver_id ? { ...a, lat: data.latitude, lng: data.longitude } : a);
-                  }
-                  // Auto-add if somehow joined event was missed
-                  return [...prev, { id: data.driver_id, name: `Live Unit ${data.driver_id.slice(-4)}`, lat: data.latitude, lng: data.longitude, status: 'available' }];
-                });
+                isRemoteUpdate.current = true;
+                setAmbulances(prev => prev.map(a => a.id === data.driver_id ? { ...a, lat: data.latitude, lng: data.longitude } : a));
                 
-                // If I am the patient and this is my allocated driver, update local view
-                if (data.id === activeAmbulanceId || data.id === assignedDriverId) {
+                // If I am NOT the source (driver/admin/sim), sync my local driver view
+                if (activeRoleRef.current !== 'driver' && activeRoleRef.current !== 'admin' && activeRoleRef.current !== 'simulation') {
                   setDriverCoords([data.latitude, data.longitude]);
                 }
+                if (data.speed != null) setAmbulanceSpeed(data.speed);
+                setTimeout(() => { isRemoteUpdate.current = false; }, 50);
               }
               break;
 
             case 'TRIP_STATE_UPDATE': {
               const { new_state } = data;
+              isRemoteUpdate.current = true;
               if (new_state === 'ARRIVED_AT_PATIENT') {
                 setMissionStage('to_hospital');
-                // Calculate optimal hospital and update route
                 if (emergencyCoords) findOptimalHospital(emergencyCoords);
               } else if (new_state === 'EN_ROUTE_TO_HOSPITAL') {
                 setMissionStage('to_hospital');
@@ -509,35 +505,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setActiveAmbulanceId(null);
                 setAmbulances(prev => prev.map(a => ({ ...a, status: 'available' })));
               }
+              setTimeout(() => { isRemoteUpdate.current = false; }, 50);
               break;
             }
 
-            case 'AI_REROUTE':
-              showNotification('HAZARD DETECTED', 'AI Routing Engine has re-calculated optimal path.', 'danger');
-              break;
-
-            case 'EMERGENCY_COORDS_UPDATE':
-              if (data.latitude != null && data.longitude != null) {
-                setEmergencyCoords([data.latitude, data.longitude]);
+            case 'SOS_STATUS_UPDATE':
+              if (sosStatus !== data.status || activeAmbulanceId !== data.activeAmbulanceId || selectedHospital !== data.selectedHospital) {
+                isRemoteUpdate.current = true;
+                setSosStatus(data.status);
+                if (data.activeAmbulanceId) setActiveAmbulanceId(data.activeAmbulanceId);
+                if (data.selectedHospital) setSelectedHospital(data.selectedHospital);
+                if (data.goldenHour != null) setGoldenHour(data.goldenHour);
+                if (data.criticalEventActive != null) setCriticalEventActive(data.criticalEventActive);
+                setTimeout(() => { isRemoteUpdate.current = false; }, 50);
               }
               break;
 
-            case 'SOS_STATUS_UPDATE':
-              setSosStatus(data.status);
-              if (data.activeAmbulanceId) setActiveAmbulanceId(data.activeAmbulanceId);
-              if (data.selectedHospital) setSelectedHospital(data.selectedHospital);
-              if (data.goldenHour != null) setGoldenHour(data.goldenHour);
-              if (data.criticalEventActive != null) setCriticalEventActive(data.criticalEventActive);
-              break;
-
             case 'MAP_LAYERS_UPDATE':
+              isRemoteUpdate.current = true;
               setTerrain(data.terrain);
               setWeatherLayer(data.weatherLayer);
               setTrafficLayer(data.trafficLayer);
+              setTimeout(() => { isRemoteUpdate.current = false; }, 50);
               break;
 
             case 'HOSPITAL_DATA_UPDATE':
+              isRemoteUpdate.current = true;
               setHospitalData(data.hospitalData);
+              setTimeout(() => { isRemoteUpdate.current = false; }, 50);
               break;
           }
         } catch (err) {
@@ -585,10 +580,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Outgoing: SOS status changes
   useEffect(() => {
-    if (sosStatus !== 'idle') {
-      emitSync('UPDATE_SOS_STATUS', { status: sosStatus, activeAmbulanceId, selectedHospital, goldenHour, criticalEventActive });
+    if (sosStatus !== 'idle' && !isRemoteUpdate.current) {
+        // Only allow certain roles to push status updates to prevent loops
+        const authoritativeRoles = ['admin', 'patient', 'driver'];
+        if (authoritativeRoles.includes(activeRole)) {
+            emitSync('UPDATE_SOS_STATUS', { status: sosStatus, activeAmbulanceId, selectedHospital, goldenHour, criticalEventActive });
+        }
     }
-  }, [sosStatus, activeAmbulanceId, selectedHospital, emitSync]);
+  }, [sosStatus, activeAmbulanceId, selectedHospital, activeRole, emitSync]);
 
   // Outgoing: Map layer toggles
   useEffect(() => {
