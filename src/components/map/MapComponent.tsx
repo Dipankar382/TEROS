@@ -550,8 +550,8 @@ export default function MapComponent() {
           );
         })}
 
-        {/* Single Simulation Ambulance - Only show in Simulation Mode */}
-        {activeRole === 'simulation' && (
+        {/* Ambulance Marker - Shows in all modes */}
+        {(activeRole === 'simulation' || activeRole === 'driver' || activeRole === 'admin') && (
            <Marker ref={ambulanceRef} position={ambulanceStation as L.LatLngExpression} icon={L.divIcon({
             html: `<div style="width:40px;height:40px;border-radius:50%;background:var(--primary);border:3px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;">
               <svg viewBox="0 0 24 24" fill="white" style="width:20px;height:20px;"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5H15V3H9v2H6.5c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
@@ -579,7 +579,7 @@ export default function MapComponent() {
         ))}
 
         {/* Weather Overlays */}
-        {(weatherLayer || activeRole === 'simulation') && weatherData.map((w, idx) => (
+        {weatherLayer && weatherData.map((w, idx) => (
           <React.Fragment key={`weather-${idx}`}>
             <Circle
               center={[w.lat, w.lng]}
@@ -596,7 +596,7 @@ export default function MapComponent() {
           </React.Fragment>
         ))}
 
-        {(trafficLayer || activeRole === 'simulation') && trafficSegments.map((seg, idx) => {
+        {trafficLayer && trafficSegments.map((seg, idx) => {
           const isHeavy = seg.level > 65;
           const isModerate = seg.level > 30 && seg.level <= 65;
           const color = isHeavy ? '#DC3545' : isModerate ? '#F59E0B' : '#10B981';

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { io } from 'socket.io-client';
 import { hospitals as initialHospitals, type Hospital } from '@/lib/mockData';
 import { translations, type Language, type TranslationKey } from './translations';
 
@@ -131,10 +130,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isLiveGPS, setIsLiveGPS] = useState(false);
   const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null);
   
-  // Real-time Sync Reference (Socket.io)
+  // Real-time Sync Reference (Native WebSocket to C++ backend)
   const syncSocket = useRef<WebSocket | null>(null);
+  const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
+  const userIdRef = useRef(`user_${Math.floor(Math.random() * 10000)}`);
 
   const [activeRole, setActiveRole] = useState<'simulation' | 'patient' | 'driver' | 'hospital' | 'admin'>('simulation');
+  const activeRoleRef = useRef(activeRole);
   const [sosStatus, setSosStatus] = useState<'idle' | 'requested' | 'dispatched' | 'picked_up' | 'delivered'>('idle');
   const [ambulances, setAmbulances] = useState<Array<{ id: string; name: string; lat: number; lng: number; status: 'available' | 'busy' }>>([
     { id: 'amb1', name: 'Ambulance 01', lat: 30.0687, lng: 78.2950, status: 'available' },
@@ -313,102 +315,179 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Synchronization and Real-time Broadcasting Logic (Native WebSocket to C++)
+  // Keep activeRoleRef in sync
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    // Connect to the new high-performance C++ backend
-    const socketUrl = process.env.NEXT_PUBLIC_WS_SERVER_URL || 'ws://localhost:9001';
-    syncSocket.current = new WebSocket(socketUrl);
-    
-    syncSocket.current.onopen = () => {
-      console.log('Connected to C++ Teros Sync Server');
-      showNotification('Sync Connected', 'Real-time WebSocket link active.', 'success');
-      
-      // Send AUTH payload when connecting
+    activeRoleRef.current = activeRole;
+  }, [activeRole]);
+
+  // Re-send AUTH when role changes (but only if socket is already open)
+  useEffect(() => {
+    if (syncSocket.current && syncSocket.current.readyState === WebSocket.OPEN) {
       let roleEnum = 'UNKNOWN';
       if (activeRole === 'admin') roleEnum = 'ADMIN';
       else if (activeRole === 'hospital') roleEnum = 'HOSPITAL';
       else if (activeRole === 'patient') roleEnum = 'PATIENT';
       else if (activeRole === 'driver') roleEnum = 'DRIVER';
+      syncSocket.current.send(JSON.stringify({ type: 'AUTH', id: userIdRef.current, role: roleEnum }));
+    }
+  }, [activeRole]);
 
-      emitSync('AUTH', { id: `user_${Math.floor(Math.random() * 10000)}`, role: roleEnum });
-    };
+  // STABLE WebSocket connection — deps are empty so it never reconnects on state changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
 
-    syncSocket.current.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        const { type } = data;
-        
-        // Handle Event Payloads from C++ Backend
-        switch (type) {
-          case 'TELEMETRY_UPDATE':
-            setAmbulances(prev => prev.map(a => a.id === data.driver_id ? { ...a, lat: data.latitude, lng: data.longitude } : a));
-            if (!isLiveGPS && activeAmbulanceId === data.driver_id) setDriverCoords([data.latitude, data.longitude]);
-            break;
-            
-          case 'SOS_ACCEPTED':
-            setSosStatus('dispatched');
-            setActiveAmbulanceId(data.trip_id); // C++ sets trip_id to unique amb/req mapping
-            showNotification('SOS Accepted', 'Ambulance is en route!', 'success');
-            break;
+    function connect() {
+      const socketUrl = process.env.NEXT_PUBLIC_WS_SERVER_URL || 'ws://localhost:9001';
+      const ws = new WebSocket(socketUrl);
+      syncSocket.current = ws;
 
-          case 'TRIP_STATE_UPDATE':
-            const { new_state } = data;
-            if (new_state === 'ARRIVED_AT_PATIENT') {
-              setMissionStage('to_hospital');
-            } else if (new_state === 'EN_ROUTE_TO_HOSPITAL') {
-              setMissionStage('to_hospital');
-            } else if (new_state === 'COMPLETED') {
-              setNavigating(false);
-              setMissionStage('idle');
-              setSosStatus('idle');
-              setEmergencyCoords(null);
+      ws.onopen = () => {
+        console.log('[WS] Connected to C++ Teros Sync Server');
+        showNotification('Sync Connected', 'Real-time WebSocket link active.', 'success');
+
+        // Send AUTH with current role
+        let roleEnum = 'UNKNOWN';
+        const role = activeRoleRef.current;
+        if (role === 'admin') roleEnum = 'ADMIN';
+        else if (role === 'hospital') roleEnum = 'HOSPITAL';
+        else if (role === 'patient') roleEnum = 'PATIENT';
+        else if (role === 'driver') roleEnum = 'DRIVER';
+        ws.send(JSON.stringify({ type: 'AUTH', id: userIdRef.current, role: roleEnum }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          const { type } = data;
+
+          switch (type) {
+            case 'AUTH_SUCCESS':
+              console.log(`[WS] Authenticated as ${data.role}. ${data.connectedClients} clients online.`);
+              break;
+
+            case 'USER_JOINED':
+              console.log(`[WS] ${data.role} joined: ${data.id}`);
+              if (data.role === 'PATIENT') {
+                showNotification('Patient Connected', 'A patient device has joined the network.', 'info');
+              } else if (data.role === 'DRIVER') {
+                showNotification('Driver Connected', 'An ambulance driver has joined the network.', 'info');
+              }
+              break;
+
+            // ─── CRITICAL: SOS_ALERT is what Drivers/Admins receive when a Patient calls for help ───
+            case 'SOS_ALERT':
+              setEmergencyCoords([data.latitude, data.longitude]);
+              setSosStatus('requested');
+              showNotification('🚨 SOS ALERT', `Patient ${data.patient_id} needs emergency assistance!`, 'danger');
+              break;
+
+            case 'SOS_ACCEPTED':
+              setSosStatus('dispatched');
+              showNotification('SOS Accepted', 'An ambulance is being dispatched!', 'success');
+              break;
+
+            case 'TELEMETRY_UPDATE':
+              setAmbulances(prev => prev.map(a => a.id === data.driver_id ? { ...a, lat: data.latitude, lng: data.longitude } : a));
+              setDriverCoords([data.latitude, data.longitude]);
+              break;
+
+            case 'TRIP_STATE_UPDATE': {
+              const { new_state } = data;
+              if (new_state === 'ARRIVED_AT_PATIENT') {
+                setMissionStage('to_hospital');
+              } else if (new_state === 'EN_ROUTE_TO_HOSPITAL') {
+                setMissionStage('to_hospital');
+              } else if (new_state === 'COMPLETED') {
+                setNavigating(false);
+                setMissionStage('idle');
+                setSosStatus('idle');
+                setEmergencyCoords(null);
+              }
+              break;
             }
-            break;
-            
-          case 'AI_REROUTE':
-             showNotification('HAZARD DETECTED', 'AI Routing Engine has re-calculated optimal path.', 'danger');
-             // In a full implementation, we would update the `toHospitalPath` state with data.new_route here.
-             break;
-        }
-      } catch (err) {
-        console.error("Failed to process WebSocket message from C++ Server:", err);
-      }
-    };
 
-    syncSocket.current.onclose = () => {
-      console.log("Disconnected from C++ sever");
-    };
+            case 'AI_REROUTE':
+              showNotification('HAZARD DETECTED', 'AI Routing Engine has re-calculated optimal path.', 'danger');
+              break;
+
+            case 'EMERGENCY_COORDS_UPDATE':
+              setEmergencyCoords(data.coords);
+              break;
+
+            case 'SOS_STATUS_UPDATE':
+              setSosStatus(data.status);
+              if (data.activeAmbulanceId) setActiveAmbulanceId(data.activeAmbulanceId);
+              if (data.selectedHospital) setSelectedHospital(data.selectedHospital);
+              break;
+
+            case 'MAP_LAYERS_UPDATE':
+              setTerrain(data.terrain);
+              setWeatherLayer(data.weatherLayer);
+              setTrafficLayer(data.trafficLayer);
+              break;
+
+            case 'HOSPITAL_DATA_UPDATE':
+              setHospitalData(data.hospitalData);
+              break;
+          }
+        } catch (err) {
+          console.error('[WS] Failed to process message:', err);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('[WS] Disconnected. Reconnecting in 3s...');
+        reconnectTimer.current = setTimeout(connect, 3000);
+      };
+
+      ws.onerror = () => {
+        ws.close(); // triggers onclose → auto-reconnect
+      };
+    }
+
+    connect();
 
     return () => {
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       syncSocket.current?.close();
     };
-  }, [isLiveGPS, activeAmbulanceId, activeRole, showNotification, emitSync]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps = stable connection, never reconnects on state changes
 
-  // Outgoing Emitters to C++ Server
+  // Outgoing: Driver Telemetry with 500ms throttle
+  const lastTelemetryTime = useRef(0);
   useEffect(() => {
     if (activeRole === 'driver' && driverCoords) {
-      emitSync('DRIVER_TELEMETRY', { latitude: driverCoords[0], longitude: driverCoords[1], speed: ambulanceSpeed || 40, elevation: elevationData[currentSegIdx] || 0 });
+      const now = Date.now();
+      if (now - lastTelemetryTime.current > 500) {
+        lastTelemetryTime.current = now;
+        emitSync('DRIVER_TELEMETRY', { latitude: driverCoords[0], longitude: driverCoords[1], speed: ambulanceSpeed || 40, elevation: elevationData[currentSegIdx] || 0 });
+      }
     }
   }, [driverCoords, activeRole, ambulanceSpeed, elevationData, currentSegIdx, emitSync]);
 
+  // Outgoing: Patient emergency coords
   useEffect(() => {
     if (activeRole === 'patient' && emergencyCoords) {
-      emitSync('UPDATE_EMERGENCY_COORDS', emergencyCoords);
+      emitSync('UPDATE_EMERGENCY_COORDS', { latitude: emergencyCoords[0], longitude: emergencyCoords[1] });
     }
   }, [emergencyCoords, activeRole, emitSync]);
 
+  // Outgoing: SOS status changes
   useEffect(() => {
-    emitSync('UPDATE_SOS_STATUS', { status: sosStatus, activeAmbulanceId, selectedHospital });
+    if (sosStatus !== 'idle') {
+      emitSync('UPDATE_SOS_STATUS', { status: sosStatus, activeAmbulanceId, selectedHospital });
+    }
   }, [sosStatus, activeAmbulanceId, selectedHospital, emitSync]);
 
+  // Outgoing: Map layer toggles
   useEffect(() => {
     if (activeRole === 'admin' || activeRole === 'simulation') {
       emitSync('UPDATE_MAP_LAYERS', { terrain, weatherLayer, trafficLayer });
     }
   }, [terrain, weatherLayer, trafficLayer, activeRole, emitSync]);
 
+  // Outgoing: Hospital data updates 
   useEffect(() => {
     if (activeRole === 'hospital' || activeRole === 'admin') {
       emitSync('UPDATE_HOSPITAL_DATA', hospitalData);

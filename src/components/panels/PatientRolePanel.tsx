@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useApp } from '@/lib/AppContext';
-import { Navigation, MapPin, ShieldAlert, Activity, Info, Phone } from 'lucide-react';
+import { Phone, MapPin, Clock, Activity, ShieldAlert, Heart, Wind } from 'lucide-react';
 
 export default function PatientRolePanel() {
   const {
@@ -10,10 +10,21 @@ export default function PatientRolePanel() {
     sosStatus, setSosStatus,
     ambulances, activeAmbulanceId,
     showNotification, startCriticalEvent,
-    t, language
+    goldenHour, ambulanceSpeed,
+    liveTemp, liveWind, liveVisibility, liveRain,
+    heartRate, spo2,
+    t, language, emitSync
   } = useApp();
 
   const activeAmbulance = ambulances.find(a => a.id === activeAmbulanceId);
+
+  const formatGH = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const isCriticalTime = goldenHour < 600;
 
   const handleCallAmbulance = () => {
     if ('geolocation' in navigator) {
@@ -22,112 +33,206 @@ export default function PatientRolePanel() {
         setEmergencyCoords(coords);
         setSosStatus('requested');
         startCriticalEvent('high');
+        emitSync('SOS_REQUEST', { latitude: coords[0], longitude: coords[1] });
         showNotification('🚨 SOS SENT', 'Your location has been shared with the nearest response unit.', 'danger');
       }, () => {
-        // Fallback for demo
         const coords: [number, number] = [30.0869, 78.2676];
         setEmergencyCoords(coords);
         setSosStatus('requested');
         startCriticalEvent('high');
+        emitSync('SOS_REQUEST', { latitude: coords[0], longitude: coords[1] });
         showNotification('🚨 SOS SENT', 'Location shared via network IP.', 'danger');
       });
     }
   };
 
   return (
-    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <header>
-        <div style={{ fontSize: '11px', fontWeight: 900, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '8px' }}>
-          {t('live_mission_telemetry')}
+        <div style={{ fontSize: '11px', fontWeight: 900, color: 'var(--critical)', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px' }}>
+          EMERGENCY SERVICES
         </div>
         <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 900, color: 'var(--text)' }}>{t('patient_panel')}</h2>
       </header>
 
       {sosStatus === 'idle' ? (
-        <section style={{ 
-          textAlign: 'center', padding: '48px 24px', 
-          background: 'rgba(244, 63, 94, 0.05)', 
-          borderRadius: '32px', border: '1px solid var(--critical-light)',
-          boxShadow: '0 20px 40px rgba(244, 63, 94, 0.08)',
-          backdropFilter: 'blur(10px)'
-        }}>
-          <div style={{ 
-            fontSize: '72px', marginBottom: '20px', 
-            animation: 'pulseScale 1.5s infinite alternate' 
-          }}>🚨</div>
-          <h3 style={{ color: 'var(--critical)', margin: '0 0 12px 0', fontSize: '22px', fontWeight: 900, letterSpacing: '-0.5px' }}>
-            {t('emergency_assistance') || 'EMERGENCY ASSISTANCE'}
-          </h3>
-          <p style={{ color: 'var(--text)', fontSize: '14px', marginBottom: '32px', lineHeight: 1.6, fontWeight: 500 }}>
-            {t('sos_description') || 'Press the button below to instantly share your live location with the nearest ambulances.'}
-          </p>
-          <button 
-            onClick={handleCallAmbulance}
-            style={{
-              width: '100%', padding: '22px', 
-              background: 'linear-gradient(135deg, var(--critical), #E11D48)', 
-              color: 'white', border: 'none', borderRadius: '20px', 
-              fontSize: '18px', fontWeight: 900, cursor: 'pointer', 
-              boxShadow: '0 12px 30px rgba(225, 29, 72, 0.4)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            }}
-            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-          >
-            <ShieldAlert size={24} /> {t('call_ambulance').toUpperCase()}
-          </button>
-        </section>
-      ) : (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ 
-            padding: '20px', background: 'var(--success-light)', borderRadius: '20px',
-            border: '2px solid var(--success)', textAlign: 'center'
-          }}>
-            <div style={{ fontSize: '32px', marginBottom: '8px' }}>✅</div>
-            <div style={{ fontSize: '16px', fontWeight: 900, color: 'var(--success)', textTransform: 'uppercase' }}>
-              {t('sos_active') || 'SOS ACTIVE'}
-            </div>
-            <div style={{ fontSize: '14px', color: 'var(--text)', marginTop: '4px', fontWeight: 600 }}>
-              {sosStatus === 'requested' ? t('status_requested') : 
-               sosStatus === 'dispatched' ? t('en_route_patient') : 
-               sosStatus === 'picked_up' ? t('transporting_hospital') : t('complete')}
-            </div>
+        <>
+          {/* SOS Button */}
+          <div style={{ textAlign: 'center', padding: '32px 20px' }}>
+            <button 
+              onClick={handleCallAmbulance}
+              style={{
+                width: '180px', height: '180px', borderRadius: '50%',
+                background: 'linear-gradient(145deg, #DC3545, #B02A37)',
+                border: '6px solid rgba(220,53,69,0.3)',
+                color: 'white', fontSize: '18px', fontWeight: 900,
+                cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', gap: '8px',
+                margin: '0 auto',
+                boxShadow: '0 8px 32px rgba(220,53,69,0.4), 0 0 0 0 rgba(220,53,69,0.3)',
+                animation: 'emergencyPulse 2s infinite',
+                transition: 'all 0.3s'
+              }}>
+              <Phone size={32} />
+              <span>{t('call_ambulance')}</span>
+            </button>
+            <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '16px', fontWeight: 600 }}>
+              {t('sos_description')}
+            </p>
           </div>
 
-          {activeAmbulance && (
-            <div className="glass-card" style={{ padding: '20px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', marginBottom: '12px', textTransform: 'uppercase' }}>
-                Assigned Unit
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <div style={{ width: '50px', height: '50px', background: 'var(--primary)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-                  <Navigation size={28} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '18px', fontWeight: 900 }}>{activeAmbulance.name}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Status: Live Tracking Active</div>
-                </div>
-              </div>
+          {/* Current Weather at Location */}
+          <div style={{
+            background: 'var(--surface-alt)', borderRadius: '16px', padding: '16px',
+            border: '1px solid var(--border)'
+          }}>
+            <div style={{ fontSize: '10px', fontWeight: 900, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>
+              CONDITIONS AT YOUR LOCATION
             </div>
-          )}
-
-          <div className="glass-card" style={{ padding: '20px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', marginBottom: '12px', textTransform: 'uppercase' }}>
-              Nearby Units ({ambulances.filter(a => a.status === 'available').length})
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {ambulances.map(a => (
-                <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px', background: 'var(--surface-alt)', borderRadius: '8px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 700 }}>{a.name}</span>
-                  <span style={{ fontSize: '10px', color: a.status === 'available' ? 'var(--success)' : 'var(--warning)', fontWeight: 800 }}>
-                    {a.status.toUpperCase()}
-                  </span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              {[
+                { label: '🌡️ Temp', val: `${liveTemp}°C` },
+                { label: '👁️ Visibility', val: `${liveVisibility.toFixed(1)} km` },
+                { label: '💨 Wind', val: `${liveWind} km/h` },
+                { label: '🌧️ Rain', val: liveRain },
+              ].map(s => (
+                <div key={s.label} style={{ background: 'var(--surface)', borderRadius: '10px', padding: '10px' }}>
+                  <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: 700 }}>{s.label}</div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text)', marginTop: '2px' }}>{s.val}</div>
                 </div>
               ))}
             </div>
           </div>
-        </section>
+        </>
+      ) : (
+        <>
+          {/* Active SOS Status */}
+          <div style={{
+            padding: '20px', borderRadius: '20px',
+            background: sosStatus === 'requested' ? 'var(--critical)' : 'var(--primary)',
+            color: 'white',
+            animation: sosStatus === 'requested' ? 'pulseScale 1.5s infinite alternate' : 'none'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+              <ShieldAlert size={24} />
+              <div style={{ fontSize: '14px', fontWeight: 900, textTransform: 'uppercase' }}>
+                {sosStatus === 'requested' ? 'AWAITING RESPONSE...' :
+                 sosStatus === 'dispatched' ? '🚑 AMBULANCE EN ROUTE' :
+                 sosStatus === 'picked_up' ? '🏥 HEADING TO HOSPITAL' : '✅ DELIVERED'}
+              </div>
+            </div>
+            {activeAmbulance && (
+              <div style={{ fontSize: '12px', opacity: 0.9, fontWeight: 700 }}>
+                Unit: {activeAmbulance.name}
+              </div>
+            )}
+          </div>
+
+          {/* Golden Hour + Speed HUD */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={{
+              background: isCriticalTime ? 'var(--critical-light)' : 'var(--warning-light)',
+              border: `1px solid ${isCriticalTime ? 'var(--critical)' : 'var(--warning)'}`,
+              borderRadius: '16px', padding: '16px', textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '9px', fontWeight: 900, color: isCriticalTime ? 'var(--critical)' : 'var(--warning)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>
+                GOLDEN HOUR
+              </div>
+              <div style={{
+                fontSize: '26px', fontWeight: 900,
+                color: isCriticalTime ? 'var(--critical)' : 'var(--warning)',
+                fontFamily: "'Space Mono', monospace"
+              }}>
+                {formatGH(goldenHour)}
+              </div>
+              <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                {isCriticalTime ? '⚠️ CRITICAL' : '⏱ REMAINING'}
+              </div>
+            </div>
+
+            <div style={{
+              background: 'var(--primary-light)', border: '1px solid var(--primary)',
+              borderRadius: '16px', padding: '16px', textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '9px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>
+                AMB. SPEED
+              </div>
+              <div style={{ fontSize: '26px', fontWeight: 900, color: 'var(--primary)' }}>
+                {ambulanceSpeed}<span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-secondary)' }}>km/h</span>
+              </div>
+              <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                LIVE VELOCITY
+              </div>
+            </div>
+          </div>
+
+          {/* Patient Vitals */}
+          <div style={{
+            background: 'var(--surface-alt)', borderRadius: '16px', padding: '16px',
+            border: '1px solid var(--border)'
+          }}>
+            <div style={{ fontSize: '10px', fontWeight: 900, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>
+              YOUR VITALS
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ background: 'var(--surface)', padding: '12px', borderRadius: '12px' }}>
+                <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Heart size={10} color="var(--critical)" /> HEART RATE
+                </div>
+                <div style={{ fontSize: '22px', fontWeight: 900, color: 'var(--critical)' }}>
+                  {heartRate} <span style={{ fontSize: '10px', opacity: 0.7 }}>BPM</span>
+                </div>
+              </div>
+              <div style={{ background: 'var(--surface)', padding: '12px', borderRadius: '12px' }}>
+                <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                  🫁 SPO2 LEVEL
+                </div>
+                <div style={{ fontSize: '22px', fontWeight: 900, color: 'var(--primary)' }}>
+                  {spo2}<span style={{ fontSize: '10px', opacity: 0.7 }}>%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Weather Conditions */}
+          <div style={{
+            background: 'var(--surface-alt)', borderRadius: '16px', padding: '16px',
+            border: '1px solid var(--border)'
+          }}>
+            <div style={{ fontSize: '10px', fontWeight: 900, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>
+              ROUTE CONDITIONS
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              {[
+                { label: '🌡️ Temp', val: `${liveTemp}°C` },
+                { label: '👁️ Vis', val: `${liveVisibility.toFixed(1)} km` },
+                { label: '💨 Wind', val: `${liveWind} km/h` },
+                { label: '🌧️ Rain', val: liveRain },
+              ].map(s => (
+                <div key={s.label} style={{ background: 'var(--surface)', borderRadius: '10px', padding: '10px' }}>
+                  <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: 700 }}>{s.label}</div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text)', marginTop: '2px' }}>{s.val}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Emergency Coordinates */}
+          {emergencyCoords && (
+            <div style={{
+              background: 'var(--surface-alt)', borderRadius: '12px', padding: '14px',
+              border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '10px'
+            }}>
+              <MapPin size={16} color="var(--critical)" />
+              <div>
+                <div style={{ fontSize: '9px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>YOUR LOCATION</div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
+                  {emergencyCoords[0].toFixed(4)}, {emergencyCoords[1].toFixed(4)}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -19,8 +19,13 @@ private:
     void handle_sos(websocketpp::connection_hdl hdl, const nlohmann::json& payload);
     void handle_telemetry(websocketpp::connection_hdl hdl, const nlohmann::json& payload);
     void handle_state_transition(websocketpp::connection_hdl hdl, const nlohmann::json& payload);
+    void handle_emergency_coords(websocketpp::connection_hdl hdl, const nlohmann::json& payload);
+    void handle_sos_status_update(websocketpp::connection_hdl hdl, const nlohmann::json& payload);
+    void handle_map_layers_update(websocketpp::connection_hdl hdl, const nlohmann::json& payload);
+    void handle_hospital_data_update(websocketpp::connection_hdl hdl, const nlohmann::json& payload);
 
     void broadcast(const nlohmann::json& msg);
+    void broadcast_except(const nlohmann::json& msg, websocketpp::connection_hdl sender);
     void send_to_user(const std::string& user_id, const nlohmann::json& msg);
 
     server m_server;

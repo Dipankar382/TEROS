@@ -64,13 +64,13 @@ export default function HospitalRolePanel() {
           </div>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div className="glass-card" style={{ padding: '16px', background: 'white' }}>
+            <div className="glass-card" style={{ padding: '16px', background: 'var(--surface)' }}>
               <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: 800 }}>HEART RATE</div>
               <div style={{ fontSize: '24px', fontWeight: 900, color: 'var(--critical)', display: 'flex', alignItems: 'baseline', gap: '4px' }}>
                 {heartRate} <span style={{ fontSize: '12px', opacity: 0.7 }}>BPM</span>
               </div>
             </div>
-            <div className="glass-card" style={{ padding: '16px', background: 'white' }}>
+            <div className="glass-card" style={{ padding: '16px', background: 'var(--surface)' }}>
               <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: 800 }}>SPO2 LEVEL</div>
               <div style={{ fontSize: '24px', fontWeight: 900, color: 'var(--primary)' }}>{spo2}<span style={{ fontSize: '12px', opacity: 0.7 }}>%</span></div>
             </div>
