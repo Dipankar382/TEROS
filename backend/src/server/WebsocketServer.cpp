@@ -150,7 +150,8 @@ void WebsocketServer::handle_sos(websocketpp::connection_hdl hdl, const json& pa
         {"patient_id", patient->id},
         {"trip_id", trip.trip_id},
         {"latitude", lat},
-        {"longitude", lng}
+        {"longitude", lng},
+        {"condition", payload.value("condition", "critical")}
     };
     broadcast(sosAlert);
 

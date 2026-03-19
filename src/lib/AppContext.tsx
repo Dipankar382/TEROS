@@ -400,7 +400,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (typeof window === 'undefined') return;
 
     function connect() {
-      const socketUrl = process.env.NEXT_PUBLIC_WS_SERVER_URL || 'ws://localhost:9001';
+      const socketUrl = process.env.NEXT_PUBLIC_WS_URL || 'wss://teros-1.onrender.com';
       const ws = new WebSocket(socketUrl);
       syncSocket.current = ws;
 
