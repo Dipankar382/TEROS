@@ -71,6 +71,9 @@ type AppState = {
   setPreviewRoutes: (routes: Array<{ id: string; path: number[][] }>) => void;
   previewSelectedId: string | null;
   setPreviewSelectedId: (id: string | null) => void;
+  score: number;
+  elevationData: number[];
+  currentSegIdx: number;
 };
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -98,6 +101,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentRouteIdx, setCurrentRouteIdx] = useState(0);
   const [ambulanceProgress, setAmbulanceProgress] = useState(0);
   const [emergencyCoords, setEmergencyCoords] = useState<[number, number] | null>(null);
+  
+  // New Mission Telemetry State
+  const [score, setScore] = useState(92);
+  const [elevationData, setElevationData] = useState<number[]>([350, 365, 380, 395, 410, 420, 408, 395, 375, 360, 355, 368, 385, 400, 412, 403, 385, 370, 358, 350]);
+  const currentSegIdx = Math.min(Math.floor(ambulanceProgress * elevationData.length), elevationData.length - 1);
   const [toPatientPath, setToPatientPath] = useState<number[][] | null>(null);
   const [toHospitalPath, setToHospitalPath] = useState<number[][] | null>(null);
   const [previewRoutes, setPreviewRoutes] = useState<Array<{ id: string; path: number[][] }>>([]);
@@ -345,6 +353,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       toHospitalPath, setToHospitalPath,
       previewRoutes, setPreviewRoutes,
       previewSelectedId, setPreviewSelectedId,
+      score,
+      elevationData,
+      currentSegIdx,
     }}>
       {children}
     </AppContext.Provider>

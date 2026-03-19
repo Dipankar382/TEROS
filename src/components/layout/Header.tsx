@@ -21,8 +21,8 @@ export default function Header() {
 
   return (
     <header style={{ 
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: '56px',
-      background: 'var(--surface)', borderBottom: '1px solid var(--border)', zIndex: 1000,
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', height: '64px',
+      background: 'var(--surface)', borderBottom: '1px solid var(--border)', zIndex: 2000,
       position: 'relative', backdropFilter: 'var(--backdrop-blur)', WebkitBackdropFilter: 'var(--backdrop-blur)',
     }}>
       {/* Left: Logo */}

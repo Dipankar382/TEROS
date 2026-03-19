@@ -19,12 +19,13 @@
 
 ## ✨ Key Features
 
-- 🏥 **Survival-First Routing**: Prioritizes routes that minimize patient distress and maximize survival probability.
-- ⛰️ **Dynamic Terrain Analysis**: Calculates risk scores based on topography and road conditions.
-- ⏱️ **Golden Hour Tracking**: Real-time visual countdown and mission progress monitoring.
-- 🤖 **Smart Hospital Selection**: AI identifies the best hospital based on bed availability and travel time.
-- 🗺️ **Interactive Map**: Built with React-Leaflet, providing real-time tracking and multi-route visualization.
-- 🚨 **Emergency Simulation**: One-click SOS and scenario-based simulations for testing efficiency.
+- 🏥 **Survival-First Routing**: AI calculates the safest path using a composite survivability index.
+- ⛰️ **Terrain Intelligence**: Real-time altitude and landslide risk analysis integrated into the HUD.
+- ⏱️ **Golden Hour HUD**: High-tech transparent overlay for mission-critical time monitoring.
+- 🚥 **Path-Based Traffic**: Live street-level congestion simulation on arterial road segments.
+- ✨ **Premium Glassmorphism**: Ultra-modern, simplified UI optimized for both desktop and mobile.
+- 🧘 **Strictly Clean Layout**: Optimized component spacing to prevent any UI overlaps or visual clutter.
+- 🤖 **Predictive AI Rerouting**: Dynamic multi-factor path scoring (Weather + Traffic + Safety).
 
 ---
 

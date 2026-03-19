@@ -45,98 +45,84 @@ export default function NavPanel() {
   };
 
   return (
-    <div className="nav-panel" style={{
+    <div className="nav-panel glass-card" style={{
       position: 'absolute', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
-      width: 'calc(100% - 32px)', maxWidth: '500px',
-      background: 'rgba(255, 255, 255, 0.95)', border: '1px solid var(--border)',
-      borderRadius: 'var(--radius-md)', padding: '16px', boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
-      backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', zIndex: 1000, 
-      display: 'flex', flexDirection: 'column', gap: '12px'
+      width: 'calc(100% - 40px)', maxWidth: '540px',
+      borderRadius: 'var(--radius-lg)', padding: '24px', zIndex: 1000, 
+      display: 'flex', flexDirection: 'column', gap: '16px',
+      animation: 'slideInTop 0.5s cubic-bezier(0.16, 1, 0.3, 1) reverse'
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{
-            width: '12px', height: '12px', borderRadius: '50%', 
-            background: 'var(--primary)', boxShadow: '0 0 0 4px rgba(27,115,232,0.2)',
-            animation: 'pulse 2s infinite'
+            width: '10px', height: '10px', borderRadius: '50%', 
+            background: 'var(--primary)', boxShadow: '0 0 20px var(--primary)',
+            animation: 'pulseGlow 2s infinite'
           }}></div>
           <div>
-            <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--text-muted)', marginBottom: '2px' }}>
               {stageLabel}
             </div>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
-              → {destName}
+            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.3px' }}>
+              Towards: {destName}
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-             <div style={{ fontSize: '9px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{t('condition')}</div>
-             <div style={{ 
-               fontSize: '11px', fontWeight: 800, 
-               color: patientCondition === 'critical' ? 'var(--critical)' : patientCondition === 'deteriorating' ? 'var(--warning)' : 'var(--success)' 
-             }}>
-               {t(patientCondition as any)}
-             </div>
-          </div>
-          <div style={{ width: '1px', height: '20px', background: 'var(--border)' }} />
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '9px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>HR</div>
-            <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--critical)' }}>♥ {heartRate}</div>
-          </div>
+        <div style={{ textAlign: 'right' }}>
+           <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>ETA</div>
+           <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)' }}>{timeDisplay}</div>
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <div style={{ flex: 1, position: 'relative', height: '6px', background: 'var(--surface-alt)', borderRadius: '3px', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ flex: 1, height: '6px', background: 'var(--surface-alt)', borderRadius: '3px', overflow: 'hidden', border: '1px solid var(--border)' }}>
           <div style={{ 
             height: '100%', width: `${progressPercent}%`, 
             background: 'var(--primary)', 
-            borderRadius: '3px', transition: 'width 0.5s ease-out' 
+            borderRadius: '3px', transition: 'width 0.5s cubic-bezier(0.16, 1, 0.3, 1)' 
           }}></div>
         </div>
-        <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', minWidth: '35px' }}>
+        <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text)', minWidth: '40px' }}>
           {progressPercent}%
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--primary)' }}>
-            <Clock size={14} /> {timeDisplay}
-          </div>
-        </div>
-        
-        <div style={{ display: 'flex', gap: '6px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '8px' }}>
           <button 
             onClick={() => setPaused(!paused)}
             style={{
-              padding: '6px 10px', borderRadius: '4px', background: 'var(--surface-alt)',
-              border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px'
+              padding: '10px 18px', borderRadius: 'var(--radius-sm)', background: 'var(--surface-alt)',
+              border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px',
+              fontSize: '12px', fontWeight: 700, transition: 'all 0.2s'
             }}>
-            {paused ? <Play size={14} fill="currentColor" /> : <Pause size={14} fill="currentColor" />}
-            <span style={{ fontSize: '10px', fontWeight: 700 }}>{paused ? t('resume') : t('pause')}</span>
+            {paused ? <Play size={16} fill="currentColor" /> : <Pause size={16} fill="currentColor" />}
+            <span>{paused ? t('resume') : t('pause')}</span>
           </button>
+          
           <button 
             onClick={handleSwitch}
             style={{
-              padding: '6px 10px', borderRadius: '4px', background: 'var(--warning-light)',
-              border: '1px solid var(--warning)', cursor: 'pointer', color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: '4px'
+              padding: '10px 18px', borderRadius: 'var(--radius-sm)', background: 'var(--warning-light)',
+              border: '1px solid var(--warning)', cursor: 'pointer', color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: '8px',
+              fontSize: '12px', fontWeight: 700, transition: 'all 0.2s'
             }}>
-            <RotateCw size={14} />
-            <span style={{ fontSize: '10px', fontWeight: 700 }}>{t('switch_route')}</span>
-          </button>
-          <button 
-            onClick={handleEnd}
-            style={{
-              padding: '6px 10px', borderRadius: '4px', background: 'var(--critical)',
-              border: 'none', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '4px'
-            }}>
-            <Power size={14} />
-            <span style={{ fontSize: '10px', fontWeight: 700 }}>{t('end')}</span>
+            <RotateCw size={16} />
+            <span>{t('switch_route')}</span>
           </button>
         </div>
+
+        <button 
+          onClick={handleEnd}
+          style={{
+            padding: '10px 18px', borderRadius: 'var(--radius-sm)', background: 'var(--critical)',
+            border: 'none', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '8px',
+            fontSize: '12px', fontWeight: 800, boxShadow: '0 4px 12px rgba(244, 63, 94, 0.3)', transition: 'all 0.2s'
+          }}>
+          <Power size={16} />
+          <span>{t('end')}</span>
+        </button>
       </div>
 
       <style jsx>{`

@@ -7,7 +7,6 @@ import { useApp } from '@/lib/AppContext';
 
 export default function LeftPanel() {
   const [activeTab, setActiveTab] = useState('dispatch');
-  const [hospitalFilter, setHospitalFilter] = useState('');
   
   const {
     patientType, setPatientType,
@@ -110,150 +109,125 @@ export default function LeftPanel() {
     }
   };
 
-  const filteredHospitals = hospitalData.filter(h =>
-    h.name.toLowerCase().includes(hospitalFilter.toLowerCase()) ||
-    h.name_hi.includes(hospitalFilter)
-  );
 
   return (
-    <div className="left-panel" style={{
-      width: '340px', background: 'var(--surface)',
-      borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column',
-      backdropFilter: 'var(--backdrop-blur)', WebkitBackdropFilter: 'var(--backdrop-blur)', zIndex: 10,
-      overflow: 'hidden', flexShrink: 0
+    <div className="left-panel glass-panel" style={{
+      width: '380px', height: '100%',
+      display: 'flex', flexDirection: 'column',
+      zIndex: 100, overflow: 'hidden', flexShrink: 0,
+      borderRight: '1px solid var(--border)'
     }}>
       {/* Top Header with Language Toggle */}
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)', fontWeight: 800, fontSize: '18px' }}>
-          <Activity size={20} /> TEROS
+      <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--primary)', fontWeight: 900, fontSize: '22px', letterSpacing: '-0.5px' }}>
+          <Activity size={24} /> TEROS
         </div>
         <button 
           onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
           style={{
-            display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px',
+            display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px',
             background: 'var(--surface-alt)', border: '1px solid var(--border)',
-            borderRadius: '20px', cursor: 'pointer', fontSize: '11px', fontWeight: 700,
-            color: 'var(--text-secondary)'
+            borderRadius: '20px', cursor: 'pointer', fontSize: '11px', fontWeight: 800,
+            color: 'var(--text-secondary)', transition: 'all 0.2s'
           }}>
-          <Globe size={14} /> {language === 'en' ? 'हिन्दी' : 'English'}
+          <Globe size={14} /> {language === 'en' ? 'HI' : 'EN'}
         </button>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 4px' }}>
+      <div style={{ display: 'flex', padding: '0 12px', background: 'var(--surface-alt)', borderBottom: '1px solid var(--border)' }}>
         {['dispatch', 'hospitals', 'weather'].map(tab => (
           <div key={tab} 
                onClick={() => setActiveTab(tab)}
                style={{
-            flex: 1, padding: '12px 8px', textAlign: 'center', fontSize: '11px', fontWeight: 600,
-            textTransform: 'uppercase', letterSpacing: '0.8px', cursor: 'pointer',
+            flex: 1, padding: '16px 8px', textAlign: 'center', fontSize: '10px', fontWeight: 800,
+            textTransform: 'uppercase', letterSpacing: '1.2px', cursor: 'pointer',
             color: activeTab === tab ? 'var(--primary)' : 'var(--text-muted)',
-            borderBottom: activeTab === tab ? '2px solid var(--primary)' : '2px solid transparent',
-            transition: 'all 0.2s',
+            position: 'relative', transition: 'all 0.3s'
           }}>
             {t(tab as any)}
+            {activeTab === tab && (
+              <div style={{ position: 'absolute', bottom: 0, left: '25%', right: '25%', height: '3px', background: 'var(--primary)', borderRadius: '3px 3px 0 0' }} />
+            )}
           </div>
         ))}
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
         {/* DISPATCH TAB */}
         {activeTab === 'dispatch' && (
-          <div>
-            {/* Patient Classification */}
-            <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-              {t('patient_classification')}
-            </div>
-            <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
-              <button 
-                onClick={() => startCriticalEvent('high')}
-                style={{
-                  flex: 1, padding: '10px', border: `2px solid ${patientType === 'critical' ? 'var(--danger)' : 'var(--border)'}`,
-                  borderRadius: 'var(--radius-sm)',
-                  background: patientType === 'critical' ? 'var(--danger)' : 'var(--surface)',
-                  color: patientType === 'critical' ? '#fff' : 'var(--text)',
-                  textAlign: 'center', cursor: 'pointer',
-                }}>
-                <div style={{ fontSize: '20px', marginBottom: '4px' }}>🚨</div>
-                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('critical')}</div>
-              </button>
-              <button 
-                onClick={() => setPatientType('normal')}
-                style={{
-                  flex: 1, padding: '10px', border: `2px solid ${patientType === 'normal' ? 'var(--success)' : 'var(--border)'}`,
-                  borderRadius: 'var(--radius-sm)',
-                  background: patientType === 'normal' ? 'var(--success-light)' : 'var(--surface)',
-                  color: patientType === 'normal' ? 'var(--success)' : 'var(--text)',
-                  textAlign: 'center', cursor: 'pointer',
-                }}>
-                <div style={{ fontSize: '20px', marginBottom: '4px' }}>🩺</div>
-                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('normal')}</div>
-              </button>
-            </div>
-
-            {/* Golden Hour */}
-            {patientType === 'critical' && (
-              <div style={{
-                background: isCriticalTime 
-                  ? 'linear-gradient(135deg, var(--critical-light), rgba(239,68,68,0.2))' 
-                  : 'linear-gradient(135deg, var(--warning-light), rgba(245,158,11,0.25))',
-                border: `1px solid ${isCriticalTime ? 'var(--critical)' : 'var(--warning)'}`,
-                borderRadius: 'var(--radius-sm)', padding: '14px',
-                textAlign: 'center', marginBottom: '12px',
-              }}>
-                <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', color: isCriticalTime ? 'var(--critical)' : 'var(--warning)', marginBottom: '4px' }}>
-                  {t('golden_hour_remaining')} {simSpeedMultiplier > 1 && `(${simSpeedMultiplier}x)`}
-                </div>
-                <div style={{ fontFamily: "'Space Mono', monospace", fontSize: '32px', fontWeight: 700, color: isCriticalTime ? 'var(--critical)' : 'var(--warning)', letterSpacing: '2px' }}>
-                  {formatGH(goldenHour)}
-                </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                  {t('critical_window')}
-                </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            
+            {/* Patient & Mission Priority */}
+            <section>
+              <div style={{ fontSize: '11px', fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '12px' }}>
+                {t('patient_classification')}
               </div>
-            )}
-
-            {/* Pickup Location */}
-            <div style={{ marginBottom: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                  {t('mock_emergencies')}
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--danger)', fontSize: '10px', fontWeight: 700 }}>
-                  <ShieldAlert size={12} /> {t('live_incidents')}
-                </div>
-              </div>
-              <select 
-                value={selectedMockId} 
-                onChange={handleMockSelect}
-                style={{
-                  width: '100%', padding: '10px 12px', border: '2px solid var(--border)', borderRadius: 'var(--radius-sm)',
-                  fontSize: '13px', fontFamily: 'inherit', color: 'var(--text)', background: 'var(--surface)', outline: 'none',
-                  cursor: 'pointer', marginBottom: '12px', fontWeight: 600
-                }}
-              >
-                <option value="">{t('select_scenario')}</option>
-                {mockEmergencies.map(m => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  {t('manual_location')}
-                </label>
-                <button onClick={handleLocateEmergency} style={{
-                  background: 'none', border: 'none', color: 'var(--primary)', fontSize: '11px', fontWeight: 700, 
-                  display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', padding: 0
-                }}>
-                  <MapPin size={12} /> {t('locate_me')}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  onClick={() => startCriticalEvent('high')}
+                  style={{
+                    flex: 1, padding: '16px 12px', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    background: patientType === 'critical' ? 'var(--critical-light)' : 'var(--surface-alt)',
+                    color: patientType === 'critical' ? 'var(--critical)' : 'var(--text-secondary)',
+                    cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'
+                  }}>
+                  <div style={{ fontSize: '18px' }}>🚨</div>
+                  <div style={{ fontSize: '10px', fontWeight: 800 }}>CRITICAL</div>
+                </button>
+                <button 
+                  onClick={() => setPatientType('normal')}
+                  style={{
+                    flex: 1, padding: '16px 12px', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    background: patientType === 'normal' ? 'var(--success-light)' : 'var(--surface-alt)',
+                    color: patientType === 'normal' ? 'var(--success)' : 'var(--text-secondary)',
+                    cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'
+                  }}>
+                  <div style={{ fontSize: '18px' }}>🩺</div>
+                  <div style={{ fontSize: '10px', fontWeight: 800 }}>ROUTINE</div>
                 </button>
               </div>
-              <input type="text" value={pickupLocation} onChange={e => setPickupLocation(e.target.value)} placeholder="Wait for location or type..." style={{
-                width: '100%', padding: '9px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
-                fontSize: '13px', fontFamily: 'inherit', color: 'var(--text)', background: 'var(--surface)', outline: 'none',
-              }} />
-            </div>
+            </section>
+
+            {/* Location Intel */}
+            <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>
+                Emergency Location
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <select 
+                  value={selectedMockId} 
+                  onChange={handleMockSelect}
+                  className="glass-card"
+                  style={{
+                    width: '100%', padding: '14px', borderRadius: 'var(--radius-sm)',
+                    fontSize: '13px', color: 'var(--text)', background: 'var(--surface)', border: '1px solid var(--border)',
+                    cursor: 'pointer', fontWeight: 600
+                  }}
+                >
+                  <option value="">{t('select_scenario')}</option>
+                  {mockEmergencies.map(m => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+
+                <div style={{ position: 'relative' }}>
+                  <input type="text" value={pickupLocation} onChange={e => setPickupLocation(e.target.value)} placeholder="Type location..." style={{
+                    width: '100%', padding: '12px 14px', borderRadius: 'var(--radius-sm)',
+                    fontSize: '13px', color: 'var(--text)', background: 'var(--surface)', border: '1px solid var(--border)', outline: 'none',
+                  }} />
+                  <button onClick={handleLocateEmergency} style={{
+                    position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: '4px'
+                  }}>
+                    <MapPin size={16} />
+                  </button>
+                </div>
+              </div>
+            </section>
 
             {/* Patient Status Section */}
           {missionStage !== 'idle' && (
@@ -569,20 +543,8 @@ export default function LeftPanel() {
             <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
               {t('live_bed_availability')}
             </div>
-            <div style={{ marginBottom: '12px' }}>
-              <input 
-                type="text" 
-                placeholder={t('search_hospitals')}
-                value={hospitalFilter}
-                onChange={e => setHospitalFilter(e.target.value)}
-                style={{
-                  width: '100%', padding: '9px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
-                  fontSize: '13px', fontFamily: 'inherit', color: 'var(--text)', background: 'var(--surface)', outline: 'none',
-                }} 
-              />
-            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {filteredHospitals.map(h => (
+              {hospitalData.map(h => (
                 <div key={h.id} style={{ 
                   border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', 
                   padding: '12px', transition: 'all 0.2s' 

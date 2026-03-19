@@ -153,21 +153,39 @@ export default function RouteSwitchModal() {
             const path: [number, number][] = r.geometry.coordinates.map(
               (c: number[]) => [c[1], c[0]] as [number, number]
             );
-            const timeScore = 100 * (1 - (r.duration - minDur) / range);
+            
+            // AI Multi-Factor Scoring Logic (0-100)
+            // Base speed score (faster = higher)
+            const speedScore = Math.max(0, 100 - ((r.duration - minDur) / 20)); 
+            // Simulated factors for the alternative routes
+            const weatherScore = idx === 0 ? 95 : idx === 1 ? 60 : 85; // Northern might be rainier in mock
+            const trafficScore = Math.max(30, 100 - (Math.random() * 40)); // Random traffic for alts
+            const safetyScore = Math.round((speedScore * 0.4) + (weatherScore * 0.4) + (trafficScore * 0.2));
+
+            let aiReasoning = "Fastest Route";
+            if (idx === 1) aiReasoning = "Balanced — Avoids Highway Traffic";
+            if (idx === 2) aiReasoning = "Safest — Minimal Weather Risk";
+
             return {
               id: `patient_alt_${idx}`,
               label: idx === 0 ? 'Direct Route' : idx === 1 ? 'Northern Detour' : 'Southern Detour',
               label_hi: idx === 0 ? 'सीधा मार्ग' : idx === 1 ? 'उत्तरी मार्ग' : 'दक्षिणी मार्ग',
-              sublabel: r.legs?.[0]?.summary || `${idx === 0 ? 'Fastest path' : idx === 1 ? 'Via left bypass' : 'Via right bypass'} — ${formatDistance(r.distance)}`,
+              sublabel: aiReasoning + ` — ${formatDistance(r.distance)}`,
               duration: Math.round(r.duration),
               distance: Math.round(r.distance),
               path,
-              score: Math.round(timeScore),
-              aiRecommended: idx === 0,
+              score: safetyScore,
+              aiRecommended: idx === 0 && safetyScore > 85, // Direct if safe
               loading: false,
               failed: false,
             };
           });
+
+          // Ensure at least one is "AI Recommended"
+          if (!opts.some(o => o.aiRecommended) && opts.length > 0) {
+              const best = [...opts].sort((a,b) => b.score - a.score)[0];
+              best.aiRecommended = true;
+          }
 
           setRoutes(opts);
           setPreviewRoutes(opts.map(o => ({ id: o.id, path: o.path })));

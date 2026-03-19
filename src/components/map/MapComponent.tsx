@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap, Circle } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap, Circle, ZoomControl } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useApp } from '@/lib/AppContext';
-import { hospitals, weatherData } from '@/lib/mockData';
+import { hospitals, weatherData, routes } from '@/lib/mockData';
 
 // Fixed starting point (ambulance station)
 const ambulanceStation: [number, number] = [30.1200, 78.2500];
@@ -63,37 +63,50 @@ export default function MapComponent() {
   const progressRef = useRef(0);
   const prevPathRef = useRef<number[][] | null>(null);
 
-  const [trafficSegments, setTrafficSegments] = useState<Array<{ path: [number, number][]; heavy: boolean }>>([]);
+  const [trafficSegments, setTrafficSegments] = useState<Array<{ path: [number, number][]; level: number; delay: number }>>([]);
 
-  // Generate and Update "Live" Traffic Simulation
+  // Generate and Update "Live" Arterial Traffic Simulation
   useEffect(() => {
-    const nodes = hospitals.map(h => [h.lat, h.lng] as [number, number]);
-    const generate = () => {
-      const segs: Array<{ path: [number, number][]; heavy: boolean }> = [];
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
-          const dist = Math.sqrt(
-            Math.pow(nodes[i][0] - nodes[j][0], 2) +
-            Math.pow(nodes[i][1] - nodes[j][1], 2)
-          );
-          if (dist < 1.6) { // Coverage for regional arteries
-            segs.push({ 
-              path: [nodes[i], nodes[j]], 
-              heavy: Math.random() > 0.7 
-            });
-          }
+    // 1. Extract all road paths from mock data to serve as "arteries"
+    const arterialPaths: [number, number][][] = [];
+    Object.values(routes).forEach((hospitalRoutes: any) => {
+      hospitalRoutes.forEach((r: any) => {
+        if (r.path && r.path.length > 0) {
+          arterialPaths.push(r.path as [number, number][]);
         }
-      }
+      });
+    });
+
+    const generate = () => {
+      const segs: Array<{ path: [number, number][]; level: number; delay: number }> = [];
+      
+      // 2. Break long paths into shorter segments for more granular traffic display
+      arterialPaths.forEach(path => {
+        for (let i = 0; i < path.length - 1; i++) {
+          const level = Math.random() * 100;
+          segs.push({
+            path: [path[i], path[i+1]],
+            level,
+            delay: Math.round((level / 100) * 8) // shorter segments = smaller individual delays
+          });
+        }
+      });
       setTrafficSegments(segs);
     };
 
     generate();
     const interval = setInterval(() => {
-      setTrafficSegments(prev => prev.map(s => ({
-        ...s,
-        heavy: Math.random() > 0.75 // Randomize congestion status periodically
-      })));
-    }, 10000); // Shuffle every 10s to feel "live"
+      setTrafficSegments(prev => prev.map(s => {
+        // Only flux traffic slightly so it doesn't jump crazily
+        const flux = (Math.random() - 0.5) * 15;
+        const newLevel = Math.max(0, Math.min(100, s.level + flux));
+        return {
+          ...s,
+          level: newLevel,
+          delay: Math.round((newLevel / 100) * 8)
+        };
+      }));
+    }, 12000); // Slower shuffle for road segments
 
     return () => clearInterval(interval);
   }, []);
@@ -493,6 +506,7 @@ export default function MapComponent() {
         ref={setMapInstance}
       >
         <TileLayer attribution="&copy; OSM" url={tileUrl} />
+        <ZoomControl position="bottomright" />
 
         {/* Route to patient (red dashed when completed) */}
         {toPatientPath && (
@@ -577,26 +591,31 @@ export default function MapComponent() {
           </React.Fragment>
         ))}
 
-        {/* Global Synthetic Traffic — region-wide hospital-artery congestion */}
-        {trafficLayer && trafficSegments.map((seg, idx) => (
-          <Polyline
-            key={`traf-${idx}`}
-            positions={seg.path as L.LatLngExpression[]}
-            pathOptions={{
-              color: seg.heavy ? '#DC3545' : '#F59E0B',
-              weight: seg.heavy ? 5 : 4,
-              opacity: 0.7,
-              dashArray: seg.heavy ? '4, 10' : '8, 12',
-            }}
-          >
-            <Popup>
-              <div style={{ fontWeight: 700, color: seg.heavy ? '#DC3545' : '#F59E0B' }}>
-                {seg.heavy ? '🔴 Heavy Traffic' : '🟡 Moderate Traffic'}
-              </div>
-              <div style={{ fontSize: '11px' }}>AI predicts {seg.heavy ? '12–18 min' : '4–8 min'} delay</div>
-            </Popup>
-          </Polyline>
-        ))}
+        {trafficLayer && trafficSegments.map((seg, idx) => {
+          const isHeavy = seg.level > 65;
+          const isModerate = seg.level > 30 && seg.level <= 65;
+          const color = isHeavy ? '#DC3545' : isModerate ? '#F59E0B' : '#10B981';
+          return (
+            <Polyline
+              key={`traf-${idx}`}
+              positions={seg.path as L.LatLngExpression[]}
+              pathOptions={{
+                color,
+                weight: isHeavy ? 6 : isModerate ? 4 : 3,
+                opacity: 0.7,
+                dashArray: isHeavy ? '4, 10' : undefined,
+              }}
+            >
+              <Popup>
+                <div style={{ fontWeight: 800, color }}>
+                  {isHeavy ? '🔴 Heavy Congestion' : isModerate ? '🟡 Moderate Traffic' : '🟢 Fluid Traffic'}
+                </div>
+                <div style={{ fontSize: '12px', fontWeight: 600 }}>Traffic Level: {Math.round(seg.level)}%</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>AI predicts {seg.delay} min delay</div>
+              </Popup>
+            </Polyline>
+          );
+        })}
       </MapContainer>
     </div>
   );
