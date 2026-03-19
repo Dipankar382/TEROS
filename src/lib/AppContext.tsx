@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { io } from 'socket.io-client';
 import { hospitals as initialHospitals, type Hospital } from '@/lib/mockData';
 import { translations, type Language, type TranslationKey } from './translations';
 
@@ -100,6 +100,7 @@ type AppState = {
   setWeatherLayer: (v: boolean) => void;
   trafficLayer: boolean;
   setTrafficLayer: (v: boolean) => void;
+  emitSync: (type: string, payload: any) => void;
 };
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -131,7 +132,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null);
   
   // Real-time Sync Reference (Socket.io)
-  const syncSocket = useRef<Socket | null>(null);
+  const syncSocket = useRef<WebSocket | null>(null);
 
   const [activeRole, setActiveRole] = useState<'simulation' | 'patient' | 'driver' | 'hospital' | 'admin'>('simulation');
   const [sosStatus, setSosStatus] = useState<'idle' | 'requested' | 'dispatched' | 'picked_up' | 'delivered'>('idle');
@@ -218,6 +219,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
           setEmergencyCoords(coords);
           setSosStatus('requested');
+          emitSync('SOS_REQUEST', { latitude: coords[0], longitude: coords[1] });
           showNotification('SOS BROADCASTED', 'Searching for nearest available ambulance...', 'danger');
         },
         (err) => {
@@ -225,6 +227,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const mockCoords: [number, number] = [30.0668, 78.2973];
           setEmergencyCoords(mockCoords);
           setSosStatus('requested');
+          emitSync('SOS_REQUEST', { latitude: mockCoords[0], longitude: mockCoords[1] });
           showNotification('SOS (MOCK GPS)', 'Broadcasted from emergency coordinates.', 'danger');
         }
       );
@@ -303,72 +306,92 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => { if (watchId !== null) navigator.geolocation.clearWatch(watchId); };
   }, [activeRole, isLiveGPS, sosStatus, activeAmbulanceId, showNotification, setIsLiveGPS]);
 
-  // Helper to emit events to the relay server
-  const emitSync = useCallback((type: string, payload: unknown) => {
-    syncSocket.current?.emit('teros_sync', { type, payload });
+  // Helper to emit events to the C++ Live Server
+  const emitSync = useCallback((type: string, payload: any) => {
+    if (syncSocket.current && syncSocket.current.readyState === WebSocket.OPEN) {
+      syncSocket.current.send(JSON.stringify({ type, ...payload }));
+    }
   }, []);
 
-  // Synchronization and Real-time Broadcasting Logic (Socket.io for Cross-Device Support)
+  // Synchronization and Real-time Broadcasting Logic (Native WebSocket to C++)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_SERVER_URL || 'http://localhost:4000';
-    syncSocket.current = io(socketUrl);
+    // Connect to the new high-performance C++ backend
+    const socketUrl = process.env.NEXT_PUBLIC_WS_SERVER_URL || 'ws://localhost:9001';
+    syncSocket.current = new WebSocket(socketUrl);
     
-    syncSocket.current.on('connect', () => {
-      console.log('Connected to Teros Sync Server');
-      showNotification('Sync Connected', 'Real-time cross-device link active.', 'success');
-    });
+    syncSocket.current.onopen = () => {
+      console.log('Connected to C++ Teros Sync Server');
+      showNotification('Sync Connected', 'Real-time WebSocket link active.', 'success');
+      
+      // Send AUTH payload when connecting
+      let roleEnum = 'UNKNOWN';
+      if (activeRole === 'admin') roleEnum = 'ADMIN';
+      else if (activeRole === 'hospital') roleEnum = 'HOSPITAL';
+      else if (activeRole === 'patient') roleEnum = 'PATIENT';
+      else if (activeRole === 'driver') roleEnum = 'DRIVER';
 
-    syncSocket.current.on('teros_sync', (data: SyncData) => {
-      const { type, payload } = data;
-      switch (type) {
-        case 'UPDATE_DRIVER_LOCATION':
-          setAmbulances(prev => prev.map(a => a.id === payload.id ? { ...a, lat: payload.lat, lng: payload.lng } : a));
-          if (!isLiveGPS && activeAmbulanceId === payload.id) setDriverCoords([payload.lat, payload.lng]);
-          break;
-        case 'UPDATE_EMERGENCY_COORDS':
-          setEmergencyCoords(payload);
-          break;
-        case 'UPDATE_SOS_STATUS':
-          setSosStatus(payload.status);
-          if (payload.activeAmbulanceId) setActiveAmbulanceId(payload.activeAmbulanceId);
-          if (payload.selectedHospital) setSelectedHospital(payload.selectedHospital);
-          
-          if (payload.status === 'dispatched') {
-            setNavigating(true);
-            setMissionStage('to_patient');
-          } else if (payload.status === 'picked_up') {
-            setMissionStage('to_hospital');
-          } else if (payload.status === 'idle' || payload.status === 'delivered') {
-            setNavigating(false);
-            setMissionStage('idle');
-            setEmergencyCoords(null);
-            setDriverCoords(null);
-          }
-          break;
-        case 'UPDATE_HOSPITAL_DATA':
-          setHospitalData(payload);
-          break;
-        case 'UPDATE_MAP_LAYERS':
-          setTerrain(payload.terrain);
-          setWeatherLayer(payload.weatherLayer);
-          setTrafficLayer(payload.trafficLayer);
-          break;
+      emitSync('AUTH', { id: `user_${Math.floor(Math.random() * 10000)}`, role: roleEnum });
+    };
+
+    syncSocket.current.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        const { type } = data;
+        
+        // Handle Event Payloads from C++ Backend
+        switch (type) {
+          case 'TELEMETRY_UPDATE':
+            setAmbulances(prev => prev.map(a => a.id === data.driver_id ? { ...a, lat: data.latitude, lng: data.longitude } : a));
+            if (!isLiveGPS && activeAmbulanceId === data.driver_id) setDriverCoords([data.latitude, data.longitude]);
+            break;
+            
+          case 'SOS_ACCEPTED':
+            setSosStatus('dispatched');
+            setActiveAmbulanceId(data.trip_id); // C++ sets trip_id to unique amb/req mapping
+            showNotification('SOS Accepted', 'Ambulance is en route!', 'success');
+            break;
+
+          case 'TRIP_STATE_UPDATE':
+            const { new_state } = data;
+            if (new_state === 'ARRIVED_AT_PATIENT') {
+              setMissionStage('to_hospital');
+            } else if (new_state === 'EN_ROUTE_TO_HOSPITAL') {
+              setMissionStage('to_hospital');
+            } else if (new_state === 'COMPLETED') {
+              setNavigating(false);
+              setMissionStage('idle');
+              setSosStatus('idle');
+              setEmergencyCoords(null);
+            }
+            break;
+            
+          case 'AI_REROUTE':
+             showNotification('HAZARD DETECTED', 'AI Routing Engine has re-calculated optimal path.', 'danger');
+             // In a full implementation, we would update the `toHospitalPath` state with data.new_route here.
+             break;
+        }
+      } catch (err) {
+        console.error("Failed to process WebSocket message from C++ Server:", err);
       }
-    });
+    };
+
+    syncSocket.current.onclose = () => {
+      console.log("Disconnected from C++ sever");
+    };
 
     return () => {
-      syncSocket.current?.disconnect();
+      syncSocket.current?.close();
     };
-  }, [isLiveGPS, activeAmbulanceId, showNotification]);
+  }, [isLiveGPS, activeAmbulanceId, activeRole, showNotification, emitSync]);
 
-  // Outgoing Emitters
+  // Outgoing Emitters to C++ Server
   useEffect(() => {
     if (activeRole === 'driver' && driverCoords) {
-      emitSync('UPDATE_DRIVER_LOCATION', { id: activeAmbulanceId || 'amb1', lat: driverCoords[0], lng: driverCoords[1] });
+      emitSync('DRIVER_TELEMETRY', { latitude: driverCoords[0], longitude: driverCoords[1], speed: ambulanceSpeed || 40, elevation: elevationData[currentSegIdx] || 0 });
     }
-  }, [driverCoords, activeRole, activeAmbulanceId, emitSync]);
+  }, [driverCoords, activeRole, ambulanceSpeed, elevationData, currentSegIdx, emitSync]);
 
   useEffect(() => {
     if (activeRole === 'patient' && emergencyCoords) {
@@ -442,6 +465,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       terrain, setTerrain,
       weatherLayer, setWeatherLayer,
       trafficLayer, setTrafficLayer,
+      emitSync,
     }}>
       {children}
     </AppContext.Provider>

@@ -14,7 +14,7 @@ export default function DriverRolePanel() {
     calculateDistance, showNotification,
     isLiveGPS, setIsLiveGPS,
     ambulances, setAmbulances,
-    t, language
+    t, language, emitSync
   } = useApp();
 
   const activeAmbulance = ambulances.find(a => a.id === activeAmbulanceId) || ambulances[0];
@@ -23,15 +23,17 @@ export default function DriverRolePanel() {
   const distToPatient = (driverCoords && emergencyCoords) ? calculateDistance(driverCoords, emergencyCoords) : Infinity;
   const distToHospital = (driverCoords && targetHospital) ? calculateDistance(driverCoords, [targetHospital.lat, targetHospital.lng]) : Infinity;
 
-  const canPickUp = distToPatient <= 20;
-  const canHandover = distToHospital <= 20;
+  const canPickUp = distToPatient <= 10;
+  const canHandover = distToHospital <= 10;
 
   const handlePickUp = () => {
+    emitSync('STATE_TRANSITION', { trip_id: activeAmbulanceId, new_state: 'ARRIVED_AT_PATIENT' });
     setSosStatus('picked_up');
     showNotification('Patient Picked Up', 'Heading to optimal hospital destination.', 'success');
   };
 
   const handleHandover = () => {
+    emitSync('STATE_TRANSITION', { trip_id: activeAmbulanceId, new_state: 'COMPLETED' });
     setSosStatus('delivered');
     showNotification('Handover Complete', 'Mission successfully ended.', 'success');
     setTimeout(() => {
@@ -89,7 +91,7 @@ export default function DriverRolePanel() {
             {sosStatus === 'requested' || sosStatus === 'dispatched' ? (
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                   {canPickUp ? '✓ Within 20m range' : `Distance: ${distToPatient.toFixed(1)}m (Need < 20m)`}
+                   {canPickUp ? '✓ Within 10m range' : `Distance: ${distToPatient.toFixed(1)}m (Need < 10m)`}
                 </div>
                 <button 
                    disabled={!canPickUp}
@@ -108,7 +110,7 @@ export default function DriverRolePanel() {
             ) : sosStatus === 'picked_up' ? (
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                   {canHandover ? '✓ At Hospital Entry' : `To Hospital: ${distToHospital.toFixed(1)}m (Need < 20m)`}
+                   {canHandover ? '✓ At Hospital Entry' : `To Hospital: ${distToHospital.toFixed(1)}m (Need < 10m)`}
                 </div>
                 <button 
                    disabled={!canHandover}
