@@ -2,18 +2,25 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { hospitals as initialHospitals, routes, type Hospital } from '@/lib/mockData';
+import { translations, type Language, type TranslationKey } from './translations';
 
 type NotificationType = 'info' | 'success' | 'warning' | 'danger';
 
 type AppState = {
   patientType: 'critical' | 'normal';
   setPatientType: (t: 'critical' | 'normal') => void;
+  patientSeverity: 'high' | 'medium' | 'low';
+  setPatientSeverity: (s: 'high' | 'medium' | 'low') => void;
+  patientCondition: 'stable' | 'deteriorating' | 'critical';
+  setPatientCondition: (c: 'stable' | 'deteriorating' | 'critical') => void;
   missionStage: 'idle' | 'to_patient' | 'to_hospital';
+  heartRate: number;
+  spo2: number;
   setMissionStage: (s: 'idle' | 'to_patient' | 'to_hospital') => void;
   goldenHour: number;
   resetGoldenHour: () => void;
   criticalEventActive: boolean;
-  startCriticalEvent: () => void;
+  startCriticalEvent: (severity?: 'high' | 'medium') => void;
   selectedHospital: string;
   setSelectedHospital: (id: string) => void;
   navigating: boolean;
@@ -21,7 +28,7 @@ type AppState = {
   paused: boolean;
   setPaused: (v: boolean) => void;
   currentRouteIdx: number;
-  setCurrentRouteIdx: (idx: number) => void;
+  setCurrentRouteIdx: React.Dispatch<React.SetStateAction<number>>;
   ambulanceProgress: number;
   setAmbulanceProgress: React.Dispatch<React.SetStateAction<number>>;
   liveTemp: number;
@@ -39,49 +46,79 @@ type AppState = {
   setSimSpeedMultiplier: (m: number) => void;
   emergencyCoords: [number, number] | null;
   setEmergencyCoords: (coords: [number, number] | null) => void;
-  mockEmergencies: Array<{ id: string; name: string; lat: number; lng: number; description: string }>;
-  // Notification
+  mockEmergencies: Array<{ id: string; name: string; lat: number; lng: number; description: string; severity?: 'high' | 'medium' }>;
   notification: { title: string; message: string; type: NotificationType } | null;
   showNotification: (title: string, message: string, type?: NotificationType) => void;
-  // Modals
   emergencyModalOpen: boolean;
   setEmergencyModalOpen: (v: boolean) => void;
   routeSwitchModalOpen: boolean;
   setRouteSwitchModalOpen: (v: boolean) => void;
+  currentObstacle: string | null;
+  setCurrentObstacle: (v: string | null) => void;
   findOptimalHospital: (coords: [number, number], silent?: boolean) => string;
   triggerSOS: () => void;
   stopGoldenHour: () => void;
+  language: Language;
+  setLanguage: (l: Language) => void;
+  t: (key: TranslationKey) => string;
+  manualHospitalSelection: boolean;
+  setManualHospitalSelection: (v: boolean) => void;
+  toPatientPath: number[][] | null;
+  setToPatientPath: React.Dispatch<React.SetStateAction<number[][] | null>>;
+  toHospitalPath: number[][] | null;
+  setToHospitalPath: React.Dispatch<React.SetStateAction<number[][] | null>>;
+  previewRoutes: Array<{ id: string; path: number[][] }>;
+  setPreviewRoutes: (routes: Array<{ id: string; path: number[][] }>) => void;
+  previewSelectedId: string | null;
+  setPreviewSelectedId: (id: string | null) => void;
 };
 
 const AppContext = createContext<AppState | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const [language, setLanguage] = useState<Language>('en');
+  const [manualHospitalSelection, setManualHospitalSelection] = useState(false);
   const [patientType, setPatientType] = useState<'critical' | 'normal'>('critical');
+  const [patientCondition, setPatientCondition] = useState<'stable' | 'deteriorating' | 'critical'>('stable');
+  const [patientSeverity, setPatientSeverity] = useState<'high' | 'medium' | 'low'>('medium');
+  const [heartRate, setHeartRate] = useState(82);
+  const [spo2, setSpo2] = useState(98);
   const [missionStage, setMissionStage] = useState<'idle' | 'to_patient' | 'to_hospital'>('idle');
-  const [goldenHour, setGoldenHour] = useState(3600); // 1 hour default
+  const [goldenHour, setGoldenHour] = useState(3600);
   const [criticalEventActive, setCriticalEventActive] = useState(false);
   const [selectedHospital, setSelectedHospital] = useState('aiims_rishikesh');
   const [navigating, setNavigating] = useState(false);
   const [paused, setPaused] = useState(false);
   const [currentRouteIdx, setCurrentRouteIdx] = useState(0);
   const [ambulanceProgress, setAmbulanceProgress] = useState(0);
-  
   const [emergencyCoords, setEmergencyCoords] = useState<[number, number] | null>(null);
+  const [toPatientPath, setToPatientPath] = useState<number[][] | null>(null);
+  const [toHospitalPath, setToHospitalPath] = useState<number[][] | null>(null);
+  const [previewRoutes, setPreviewRoutes] = useState<Array<{ id: string; path: number[][] }>>([]);
+  const [previewSelectedId, setPreviewSelectedId] = useState<string | null>(null);
 
-  const mockEmergencies = [
-    { id: 'nh7_landslide', name: 'Landslide on NH-7', lat: 30.1250, lng: 78.3150, description: 'Blocked road near Shivpuri' },
-    { id: 'thdc_spill', name: 'Lab Chemical Spill - THDC IHET', lat: 30.3705, lng: 78.4302, description: 'Inhalation risk at campus lab' },
-    { id: 'tehri_dam_accident', name: 'Accident - Tehri Dam Viewpoint', lat: 30.3780, lng: 78.4750, description: 'Vehicle fall near dam reservoir' },
-    { id: 'chamba_landslide', name: 'Landslide - Chamba Road', lat: 30.3550, lng: 78.4050, description: 'Major blockage on New Tehri road' },
-    { id: 'city_heart', name: 'Heart Attack - City Center', lat: 30.0869, lng: 78.2676, description: 'Emergency near Laxman Jhula' },
-    { id: 'trekker_injury', name: 'Trekker Injury - Neer Garh', lat: 30.1420, lng: 78.3310, description: 'Falls from height, head injury' },
+  const t = useCallback((key: TranslationKey) => {
+    return translations[language][key] || key;
+  }, [language]);
+
+  const mockEmergencies: Array<{ id: string; name: string; lat: number; lng: number; description: string; severity?: 'high' | 'medium' }> = [
+    { id: 'nh7_landslide', name: 'Landslide on NH-7', lat: 30.1250, lng: 78.3150, description: 'Blocked road near Shivpuri', severity: 'high' },
+    { id: 'thdc_spill', name: 'Lab Chemical Spill - THDC IHET', lat: 30.3705, lng: 78.4302, description: 'Inhalation risk at campus lab', severity: 'medium' },
+    { id: 'tehri_dam_accident', name: 'Accident - Tehri Dam Viewpoint', lat: 30.3780, lng: 78.4750, description: 'Vehicle fall near dam reservoir', severity: 'high' },
+    { id: 'chamba_landslide', name: 'Landslide - Chamba Road', lat: 30.3550, lng: 78.4050, description: 'Major blockage on New Tehri road', severity: 'high' },
+    { id: 'city_heart', name: 'Heart Attack - City Center', lat: 30.0869, lng: 78.2676, description: 'Emergency near Laxman Jhula', severity: 'high' },
+    { id: 'trekker_injury', name: 'Trekker Injury - Neer Garh', lat: 30.1420, lng: 78.3310, description: 'Falls from height, head injury', severity: 'medium' },
+    { id: 'forest_fire_pauri', name: 'Forest Fire - Pauri Ridge', lat: 30.1550, lng: 78.7850, description: 'Multiple burn injuries reported', severity: 'high' },
+    { id: 'cloudburst_tehri', name: 'Cloudburst - Upper Tehri', lat: 30.4000, lng: 78.4500, description: 'Structural collapse, survivors trapped', severity: 'high' },
+    { id: 'glacial_outflow', name: 'Glacial Outflow - Rishiganga', lat: 30.4850, lng: 79.7400, description: 'Flash flood, hydro-project accident', severity: 'high' },
+    { id: 'bridge_collapse', name: 'Bridge Collapse - Srinagar', lat: 30.2250, lng: 78.7880, description: 'Vehicle in river, multiple casualties', severity: 'high' },
+    { id: 'high_altitude_edema', name: 'HAPE Case - Kedarnath', lat: 30.7352, lng: 79.0672, description: 'Severe altitude sickness, O2 required', severity: 'high' },
   ];
   
   const [liveTemp, setLiveTemp] = useState(8);
   const [liveWind, setLiveWind] = useState(22);
   const [liveVisibility, setLiveVisibility] = useState(2.1);
   const [liveRain, setLiveRain] = useState('Light');
-  
   const [offlineMode, setOfflineMode] = useState(false);
   const [sosActive, setSosActive] = useState(false);
   
@@ -93,15 +130,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const [ambulanceSpeed, setAmbulanceSpeed] = useState(0);
-  const [simSpeedMultiplier, setSimSpeedMultiplier] = useState(25); // 25x faster than real-time by default
-
+  const [simSpeedMultiplier, setSimSpeedMultiplier] = useState(25);
   const [notification, setNotification] = useState<{ title: string; message: string; type: NotificationType } | null>(null);
   const notifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ghStartTime = useRef<number | null>(null);
   const accumulatedSimMs = useRef<number>(0);
-
   const [emergencyModalOpen, setEmergencyModalOpen] = useState(false);
   const [routeSwitchModalOpen, setRouteSwitchModalOpen] = useState(false);
+  const [currentObstacle, setCurrentObstacle] = useState<string | null>(null);
 
   const showNotification = useCallback((title: string, message: string, type: NotificationType = 'info') => {
     setNotification({ title, message, type });
@@ -110,6 +146,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const findOptimalHospital = useCallback((coords: [number, number], silent: boolean = false) => {
+    if (manualHospitalSelection) return selectedHospital;
+
     let bestHospitalId = selectedHospital;
     let minWaitScore = Infinity;
 
@@ -121,10 +159,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         Math.pow(hospital.lng - coords[1], 2)
       );
       
-      const bedPenalty = 5 / (hospital.beds.icu.available + 0.5);
-      const compositeScore = dist * 100 + bedPenalty;
+      // AI weight: ICU availability is crucial (penalty for low beds)
+      const icuAvail = hospital.beds.icu.available;
+      const bedPenalty = 10 / (icuAvail + 0.1); // Strong penalty for 0 or 1 beds
+      
+      // Trauma specialist bonus (negative penalty)
+      const traumaBonus = hospital.specialties.includes('Trauma') ? -0.5 : 0;
+      
+      // Dynamic composite score (Distance + Bed Factor + Specialties)
+      const compositeScore = (dist * 100) + bedPenalty + (traumaBonus * 10);
 
-      if (compositeScore < minWaitScore) {
+      if (icuAvail > 0 && compositeScore < minWaitScore) {
         minWaitScore = compositeScore;
         bestHospitalId = hospital.id;
       }
@@ -133,12 +178,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (bestHospitalId !== selectedHospital) {
       setSelectedHospital(bestHospitalId);
       if (!silent) {
-        const hName = hospitalData.find(h => h.id === bestHospitalId)?.name || 'nearest hospital';
-        showNotification('AI Optimal Redirect', `Directed to ${hName} based on proximity & capacity.`, 'success');
+        const hName = language === 'hi' 
+          ? hospitalData.find(h => h.id === bestHospitalId)?.name_hi 
+          : hospitalData.find(h => h.id === bestHospitalId)?.name || 'nearest hospital';
+        showNotification(t('optimal_destination'), `${t('ai_selected_info').replace('hospital', hName || '')}`, 'success');
       }
     }
     return bestHospitalId;
-  }, [hospitalData, selectedHospital, showNotification, setSelectedHospital]); // Added setSelectedHospital to dependencies
+  }, [hospitalData, selectedHospital, showNotification, setSelectedHospital, manualHospitalSelection, language, t]);
 
   const resetGoldenHour = useCallback(() => {
     setGoldenHour(3600);
@@ -149,12 +196,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const stopGoldenHour = useCallback(() => {
     setCriticalEventActive(false);
-    // Timer stays at current value (frozen)
   }, []);
 
-  const startCriticalEvent = useCallback(() => {
+  const startCriticalEvent = useCallback((severity: 'high' | 'medium' = 'medium') => {
     setPatientType('critical');
-    setGoldenHour(3600);
+    setPatientSeverity(severity);
+    setPatientCondition(severity === 'high' ? 'critical' : 'stable');
+    // Dynamic Golden Hour: 30 mins for High severity, 60 mins for Medium
+    const initialSeconds = severity === 'high' ? 1800 : 3600;
+    setGoldenHour(initialSeconds);
     setCriticalEventActive(true);
     ghStartTime.current = Date.now();
     accumulatedSimMs.current = 0;
@@ -165,63 +215,45 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       navigator.geolocation.getCurrentPosition((pos) => {
         const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
         setEmergencyCoords(coords);
-        setPatientType('critical');
-        setGoldenHour(3600);
-        setCriticalEventActive(true);
-        ghStartTime.current = Date.now();
-        accumulatedSimMs.current = 0;
-        const optimalHospital = findOptimalHospital(coords, true); // Call findOptimalHospital
-        setSelectedHospital(optimalHospital); // Set the selected hospital
+        startCriticalEvent('high');
+        const optimalHospital = findOptimalHospital(coords, true);
+        setSelectedHospital(optimalHospital);
         setNavigating(true);
         setMissionStage('to_patient');
         showNotification('🚨 SOS TRIGGERED', 'GPS coordinates sent. Ambulance dispatched.', 'danger');
       }, () => {
-        // Fallback to THDC IHET if geolocation fails
         const coords: [number, number] = [30.3705, 78.4302];
         setEmergencyCoords(coords);
-        setPatientType('critical');
-        setGoldenHour(3600);
-        setCriticalEventActive(true);
-        ghStartTime.current = Date.now();
-        accumulatedSimMs.current = 0;
-        const optimalHospital = findOptimalHospital(coords, true); // Call findOptimalHospital
-        setSelectedHospital(optimalHospital); // Set the selected hospital
+        startCriticalEvent('high');
+        const optimalHospital = findOptimalHospital(coords, true);
+        setSelectedHospital(optimalHospital);
         setNavigating(true);
         setMissionStage('to_patient');
         showNotification('🚨 SOS FALLBACK', 'Network location used. Ambulance dispatched.', 'danger');
       });
     }
-  }, [findOptimalHospital, setEmergencyCoords, setNavigating, setPatientType, showNotification, setMissionStage, setSelectedHospital]); // Added setSelectedHospital to dependencies
+  }, [findOptimalHospital, startCriticalEvent, setEmergencyCoords, setNavigating, showNotification, setMissionStage, setSelectedHospital]);
 
-  // Golden Hour Timer (Sync with simulation speed and pause)
   useEffect(() => {
-    if (patientType !== 'critical' || !criticalEventActive || !ghStartTime.current) return;
-    
-    if (paused) {
-      // When pausing, save the elapsed simulation time
-      const realElapsedMs = Date.now() - ghStartTime.current;
-      accumulatedSimMs.current += realElapsedMs * simSpeedMultiplier;
-      ghStartTime.current = null;
-      return;
-    } else {
-      // When resuming, reset start time
-      if (!ghStartTime.current) {
-        ghStartTime.current = Date.now();
-      }
-    }
+    if (patientType !== 'critical' || !criticalEventActive || paused) return;
+
+    // Condition-based decay: critical patients lose time faster
+    const conditionScale = patientCondition === 'critical' ? 1.5 : patientCondition === 'deteriorating' ? 1.3 : 1.0;
+    // Tick every 1 real second = simSpeedMultiplier simulated seconds × conditionScale
+    const decayPerTick = simSpeedMultiplier * conditionScale;
+    const msPerTick = 1000; // fire every real second
 
     const interval = setInterval(() => {
-      if (!ghStartTime.current) return;
-      const realElapsedMs = Date.now() - ghStartTime.current;
-      const currentSimMs = accumulatedSimMs.current + (realElapsedMs * simSpeedMultiplier);
-      const remaining = Math.max(0, 3600 - (currentSimMs / 1000));
-      setGoldenHour(Math.floor(remaining));
-    }, 100);
-    
-    return () => clearInterval(interval);
-  }, [patientType, criticalEventActive, simSpeedMultiplier, paused]);
+      setGoldenHour(prev => {
+        const next = Math.max(0, prev - decayPerTick);
+        if (next <= 0) setCriticalEventActive(false);
+        return Math.floor(next);
+      });
+    }, msPerTick);
 
-  // Live Sensors Simulation
+    return () => clearInterval(interval);
+  }, [patientType, criticalEventActive, paused, patientCondition, simSpeedMultiplier]);
+
   useEffect(() => {
     const rains = ['None', 'Light', 'Moderate', 'Light', 'None'];
     const interval = setInterval(() => {
@@ -232,11 +264,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setLiveVisibility(vis[Math.floor(Math.random() * vis.length)]);
       setLiveWind(winds[Math.floor(Math.random() * winds.length)]);
       setLiveRain(rains[Math.floor(Math.random() * rains.length)]);
+
+      // Vitals simulation
+      if (missionStage !== 'idle') {
+        const hrBase = patientCondition === 'critical' ? 110 : patientCondition === 'deteriorating' ? 95 : 80;
+        setHeartRate(Math.floor(hrBase + Math.random() * 10));
+        const spo2Base = patientCondition === 'critical' ? 88 : patientCondition === 'deteriorating' ? 92 : 97;
+        setSpo2(Math.floor(spo2Base + Math.random() * 3));
+      }
     }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [missionStage, patientCondition]);
 
-  // Live bed availability simulation
   useEffect(() => {
     const interval = setInterval(() => {
       setHospitalData(prev => prev.map(h => {
@@ -256,14 +295,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Reset route index when hospital changes
   useEffect(() => {
-    setCurrentRouteIdx(0);
-  }, [selectedHospital]);
+    if (!manualHospitalSelection) setCurrentRouteIdx(0);
+  }, [selectedHospital, manualHospitalSelection]);
 
   return (
     <AppContext.Provider value={{
       patientType, setPatientType,
+      patientSeverity, setPatientSeverity,
+      patientCondition, setPatientCondition,
+      heartRate, spo2,
       missionStage, setMissionStage,
       goldenHour, resetGoldenHour,
       criticalEventActive, startCriticalEvent,
@@ -283,9 +324,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notification, showNotification,
       emergencyModalOpen, setEmergencyModalOpen,
       routeSwitchModalOpen, setRouteSwitchModalOpen,
+      currentObstacle, setCurrentObstacle,
       findOptimalHospital,
       triggerSOS,
       stopGoldenHour,
+      language, setLanguage,
+      t,
+      manualHospitalSelection, setManualHospitalSelection,
+      toPatientPath, setToPatientPath,
+      toHospitalPath, setToHospitalPath,
+      previewRoutes, setPreviewRoutes,
+      previewSelectedId, setPreviewSelectedId,
     }}>
       {children}
     </AppContext.Provider>

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { routes, weatherData } from '@/lib/mockData';
-import { Navigation, MapPin, ShieldAlert, Activity } from 'lucide-react';
+import { Navigation, MapPin, ShieldAlert, Activity, Globe, CheckCircle2 } from 'lucide-react';
 import { useApp } from '@/lib/AppContext';
 
 export default function LeftPanel() {
@@ -12,7 +12,7 @@ export default function LeftPanel() {
   const {
     patientType, setPatientType,
     missionStage, setMissionStage,
-    goldenHour, criticalEventActive, startCriticalEvent,
+    goldenHour, criticalEventActive, startCriticalEvent, stopGoldenHour,
     selectedHospital, setSelectedHospital,
     navigating, setNavigating,
     setAmbulanceProgress, setPaused,
@@ -23,6 +23,9 @@ export default function LeftPanel() {
     ambulanceSpeed,
     simSpeedMultiplier, setSimSpeedMultiplier,
     findOptimalHospital,
+    language, setLanguage, t,
+    manualHospitalSelection, setManualHospitalSelection,
+    patientCondition, setPatientCondition, heartRate, spo2
   } = useApp();
 
   const [pickupLocation, setPickupLocation] = useState('Rishikesh, Uttarakhand');
@@ -43,16 +46,15 @@ export default function LeftPanel() {
       setPaused(false);
       setAmbulanceProgress(0);
       setMissionStage('idle');
+      stopGoldenHour();
       return;
     }
     setNavigating(true);
     setAmbulanceProgress(0);
     setMissionStage('to_patient');
     setPaused(false);
-    showNotification('Dispatch Initiated', 'Ambulance is en route to the patient location.', 'success');
+    showNotification(t('start_dispatch'), t('en_route_patient'), 'success');
   };
-
-
 
   const handleLocateEmergency = () => {
     if ('geolocation' in navigator) {
@@ -60,16 +62,16 @@ export default function LeftPanel() {
         const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
         setEmergencyCoords(coords);
         setPickupLocation(`${coords[0].toFixed(4)}, ${coords[1].toFixed(4)} (Current)`);
-        startCriticalEvent();
+        startCriticalEvent('high');
         findOptimalHospital(coords);
-        showNotification('Emergency Located', 'Golden hour started. Found optimal route.', 'warning');
+        showNotification(t('live_incidents'), t('critical_window'), 'warning');
       }, () => {
         const coords: [number, number] = [30.0869, 78.2676];
         setEmergencyCoords(coords);
         setPickupLocation(`30.0869, 78.2676 (Emergency Site)`);
-        startCriticalEvent();
+        startCriticalEvent('high');
         findOptimalHospital(coords);
-        showNotification('Emergency Mock Located', 'Golden hour started. Found optimal route.', 'warning');
+        showNotification(t('live_incidents'), t('critical_window'), 'warning');
       });
     }
   };
@@ -81,26 +83,42 @@ export default function LeftPanel() {
     if (mock) {
       const coords: [number, number] = [mock.lat, mock.lng];
       setEmergencyCoords(coords);
-        setPickupLocation(mock.name);
-        startCriticalEvent();
-        findOptimalHospital(coords);
-        showNotification('Mission Updated', `Emergency: ${mock.name}. Golden hour active.`, 'danger');
+      setPickupLocation(mock.name);
+      startCriticalEvent(mock.severity || 'medium');
+      findOptimalHospital(coords);
+      showNotification('Mission Updated', `Emergency: ${mock.name}. Golden hour active.`, 'danger');
     }
   };
 
-  const hospitalRoutes = routes[selectedHospital] || routes['aiims_rishikesh'];
-
   const filteredHospitals = hospitalData.filter(h =>
-    h.name.toLowerCase().includes(hospitalFilter.toLowerCase())
+    h.name.toLowerCase().includes(hospitalFilter.toLowerCase()) ||
+    h.name_hi.includes(hospitalFilter)
   );
 
   return (
     <div className="left-panel" style={{
-      width: '340px', minWidth: '340px', background: 'var(--surface)',
+      width: '340px', background: 'var(--surface)',
       borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column',
       backdropFilter: 'var(--backdrop-blur)', WebkitBackdropFilter: 'var(--backdrop-blur)', zIndex: 10,
-      overflow: 'hidden',
+      overflow: 'hidden', flexShrink: 0
     }}>
+      {/* Top Header with Language Toggle */}
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)', fontWeight: 800, fontSize: '18px' }}>
+          <Activity size={20} /> TEROS
+        </div>
+        <button 
+          onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px',
+            background: 'var(--surface-alt)', border: '1px solid var(--border)',
+            borderRadius: '20px', cursor: 'pointer', fontSize: '11px', fontWeight: 700,
+            color: 'var(--text-secondary)'
+          }}>
+          <Globe size={14} /> {language === 'en' ? 'हिन्दी' : 'English'}
+        </button>
+      </div>
+
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 4px' }}>
         {['dispatch', 'hospitals', 'weather'].map(tab => (
@@ -113,7 +131,7 @@ export default function LeftPanel() {
             borderBottom: activeTab === tab ? '2px solid var(--primary)' : '2px solid transparent',
             transition: 'all 0.2s',
           }}>
-            {tab}
+            {t(tab as any)}
           </div>
         ))}
       </div>
@@ -124,11 +142,11 @@ export default function LeftPanel() {
           <div>
             {/* Patient Classification */}
             <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-              Patient Classification
+              {t('patient_classification')}
             </div>
             <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
               <button 
-                onClick={() => startCriticalEvent()}
+                onClick={() => startCriticalEvent('high')}
                 style={{
                   flex: 1, padding: '10px', border: `2px solid ${patientType === 'critical' ? 'var(--danger)' : 'var(--border)'}`,
                   borderRadius: 'var(--radius-sm)',
@@ -137,7 +155,7 @@ export default function LeftPanel() {
                   textAlign: 'center', cursor: 'pointer',
                 }}>
                 <div style={{ fontSize: '20px', marginBottom: '4px' }}>🚨</div>
-                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Critical</div>
+                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('critical')}</div>
               </button>
               <button 
                 onClick={() => setPatientType('normal')}
@@ -149,7 +167,7 @@ export default function LeftPanel() {
                   textAlign: 'center', cursor: 'pointer',
                 }}>
                 <div style={{ fontSize: '20px', marginBottom: '4px' }}>🩺</div>
-                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Normal</div>
+                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('normal')}</div>
               </button>
             </div>
 
@@ -164,13 +182,13 @@ export default function LeftPanel() {
                 textAlign: 'center', marginBottom: '12px',
               }}>
                 <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', color: isCriticalTime ? 'var(--critical)' : 'var(--warning)', marginBottom: '4px' }}>
-                  Golden Hour Remaining {simSpeedMultiplier > 1 && `(${simSpeedMultiplier}x)`}
+                  {t('golden_hour_remaining')} {simSpeedMultiplier > 1 && `(${simSpeedMultiplier}x)`}
                 </div>
                 <div style={{ fontFamily: "'Space Mono', monospace", fontSize: '32px', fontWeight: 700, color: isCriticalTime ? 'var(--critical)' : 'var(--warning)', letterSpacing: '2px' }}>
                   {formatGH(goldenHour)}
                 </div>
                 <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                  Critical window for patient survival
+                  {t('critical_window')}
                 </div>
               </div>
             )}
@@ -179,10 +197,10 @@ export default function LeftPanel() {
             <div style={{ marginBottom: '12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                  Mock Emergencies
+                  {t('mock_emergencies')}
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--danger)', fontSize: '10px', fontWeight: 700 }}>
-                  <ShieldAlert size={12} /> LIVE INCIDENTS
+                  <ShieldAlert size={12} /> {t('live_incidents')}
                 </div>
               </div>
               <select 
@@ -194,7 +212,7 @@ export default function LeftPanel() {
                   cursor: 'pointer', marginBottom: '12px', fontWeight: 600
                 }}
               >
-                <option value="">Select a scenario...</option>
+                <option value="">{t('select_scenario')}</option>
                 {mockEmergencies.map(m => (
                   <option key={m.id} value={m.id}>{m.name}</option>
                 ))}
@@ -202,13 +220,13 @@ export default function LeftPanel() {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
                 <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Manual/Current Location
+                  {t('manual_location')}
                 </label>
                 <button onClick={handleLocateEmergency} style={{
                   background: 'none', border: 'none', color: 'var(--primary)', fontSize: '11px', fontWeight: 700, 
                   display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', padding: 0
                 }}>
-                  <MapPin size={12} /> Locate Me
+                  <MapPin size={12} /> {t('locate_me')}
                 </button>
               </div>
               <input type="text" value={pickupLocation} onChange={e => setPickupLocation(e.target.value)} placeholder="Wait for location or type..." style={{
@@ -217,26 +235,111 @@ export default function LeftPanel() {
               }} />
             </div>
 
-            {/* AI Selected Hospital (Read-only) */}
+            {/* Patient Status Section */}
+          {missionStage !== 'idle' && (
+            <div style={{ 
+              marginBottom: '20px', padding: '16px', background: 'var(--surface-alt)', 
+              borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' 
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  {t('critical_status')}
+                </h3>
+                <div style={{ 
+                  padding: '4px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 800,
+                  background: patientCondition === 'critical' ? 'var(--critical-light)' : patientCondition === 'deteriorating' ? 'var(--warning-light)' : 'var(--success-light)',
+                  color: patientCondition === 'critical' ? 'var(--critical)' : patientCondition === 'deteriorating' ? 'var(--warning)' : 'var(--success)',
+                  textTransform: 'uppercase'
+                }}>
+                  {t(patientCondition as any)}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                <div style={{ background: 'var(--surface)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px' }}>{t('heart_rate')}</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                    <span style={{ fontSize: '18px', fontWeight: 800, color: 'var(--critical)' }}>{heartRate}</span>
+                    <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('bpm')}</span>
+                  </div>
+                </div>
+                <div style={{ background: 'var(--surface)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px' }}>{t('spo2')}</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                    <span style={{ fontSize: '18px', fontWeight: 800, color: 'var(--primary)' }}>{spo2}%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {(['stable', 'deteriorating', 'critical'] as const).map(cond => (
+                  <button
+                    key={cond}
+                    onClick={() => setPatientCondition(cond)}
+                    style={{
+                      flex: 1, padding: '6px 4px', borderRadius: '44px', fontSize: '10px', fontWeight: 700,
+                      cursor: 'pointer', border: '1px solid',
+                      background: patientCondition === cond ? 'var(--text)' : 'transparent',
+                      color: patientCondition === cond ? 'var(--surface)' : 'var(--text-secondary)',
+                      borderColor: 'var(--border-strong)',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {t(cond as any)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+            {/* Destination Selection */}
             <div style={{ marginBottom: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                  Optimal Destination (AI)
+                  {t('optimal_destination')}
                 </label>
-                <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--success)', background: 'var(--success-light)', padding: '2px 8px', borderRadius: '10px' }}>
-                  AUTO-SELECTED
+                <div 
+                  onClick={() => setManualHospitalSelection(!manualHospitalSelection)}
+                  style={{ 
+                    fontSize: '10px', fontWeight: 700, 
+                    color: manualHospitalSelection ? 'var(--warning)' : 'var(--success)', 
+                    background: manualHospitalSelection ? 'var(--warning-light)' : 'var(--success-light)', 
+                    padding: '2px 8px', borderRadius: '10px', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '4px'
+                  }}>
+                  {manualHospitalSelection ? t('manual_override') : t('auto_selected')}
                 </div>
               </div>
-              <div style={{
-                width: '100%', padding: '12px', border: '1px solid var(--primary)', borderRadius: 'var(--radius-sm)',
-                fontSize: '14px', fontWeight: 700, color: 'var(--primary)', background: 'var(--primary-light)',
-                display: 'flex', alignItems: 'center', gap: '8px'
-              }}>
-                <span style={{ fontSize: '18px' }}>🏥</span>
-                {hospitalData.find(h => h.id === selectedHospital)?.name || 'Calculating...'}
-              </div>
+              
+              {manualHospitalSelection ? (
+                <select 
+                  value={selectedHospital} 
+                  onChange={e => setSelectedHospital(e.target.value)}
+                  style={{
+                    width: '100%', padding: '12px', border: '2px solid var(--warning)', borderRadius: 'var(--radius-sm)',
+                    fontSize: '13px', fontFamily: 'inherit', color: 'var(--text)', background: 'var(--surface)', outline: 'none',
+                    fontWeight: 700
+                  }}
+                >
+                  {hospitalData.map(h => (
+                    <option key={h.id} value={h.id}>{language === 'hi' ? h.name_hi : h.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <div style={{
+                  width: '100%', padding: '12px', border: '1px solid var(--primary)', borderRadius: 'var(--radius-sm)',
+                  fontSize: '14px', fontWeight: 700, color: 'var(--primary)', background: 'var(--primary-light)',
+                  display: 'flex', alignItems: 'center', gap: '8px'
+                }}>
+                  <CheckCircle2 size={18} />
+                  {language === 'hi' 
+                    ? hospitalData.find(h => h.id === selectedHospital)?.name_hi 
+                    : hospitalData.find(h => h.id === selectedHospital)?.name || 'Calculating...'}
+                </div>
+              )}
+              
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                AI has selected the nearest facility with available ICU beds.
+                {manualHospitalSelection ? t('select_hospital') : t('ai_selected_info')}
               </div>
             </div>
 
@@ -248,7 +351,7 @@ export default function LeftPanel() {
                 position: 'relative', overflow: 'hidden'
               }}>
                 <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', marginBottom: '8px' }}>
-                  Live Mission Telemetry
+                  {t('live_mission_telemetry')}
                 </div>
                 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -258,7 +361,7 @@ export default function LeftPanel() {
                       <span style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 600 }}>KM/H</span>
                     </div>
                     <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                      Current Velocity
+                      {t('current_velocity')}
                     </div>
                   </div>
                   
@@ -266,10 +369,10 @@ export default function LeftPanel() {
                   
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
-                       {missionStage === 'to_patient' ? 'TO SITE' : 'TO HOSPITAL'}
+                       {missionStage === 'to_patient' ? t('to_site') : t('to_hospital')}
                     </div>
                     <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                      Active Stage
+                      {t('active_stage')}
                     </div>
                   </div>
                 </div>
@@ -284,10 +387,10 @@ export default function LeftPanel() {
             <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                  Sim Speed: {simSpeedMultiplier}x
+                  {t('sim_speed')}: {simSpeedMultiplier}x
                 </label>
                 <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                  {simSpeedMultiplier === 1 ? 'REAL-TIME' : 'ACCELERATED'}
+                  {simSpeedMultiplier === 1 ? t('real_time') : t('accelerated')}
                 </div>
               </div>
               <input 
@@ -312,7 +415,7 @@ export default function LeftPanel() {
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
             }}>
               <Navigation size={16} />
-              {navigating ? (missionStage === 'to_patient' ? '● En Route to Patient...' : '● Transporting to Hospital...') : 'Start Dispatch'}
+              {navigating ? (missionStage === 'to_patient' ? t('en_route_patient') : t('transporting_hospital')) : t('start_dispatch')}
             </button>
           </div>
         )}
@@ -321,12 +424,12 @@ export default function LeftPanel() {
         {activeTab === 'hospitals' && (
           <div>
             <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-              Live Bed Availability
+              {t('live_bed_availability')}
             </div>
             <div style={{ marginBottom: '12px' }}>
               <input 
                 type="text" 
-                placeholder="Search hospitals..." 
+                placeholder={t('search_hospitals')}
                 value={hospitalFilter}
                 onChange={e => setHospitalFilter(e.target.value)}
                 style={{
@@ -343,7 +446,9 @@ export default function LeftPanel() {
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                     <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '4px', color: 'var(--text)' }}>{h.name}</div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '4px', color: 'var(--text)' }}>
+                        {language === 'hi' ? h.name_hi : h.name}
+                      </div>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px' }}>{h.dist} away</div>
                     </div>
                     <span style={{
@@ -352,7 +457,7 @@ export default function LeftPanel() {
                       background: h.open ? 'var(--success-light)' : 'var(--critical-light)',
                       color: h.open ? 'var(--success)' : 'var(--critical)',
                     }}>
-                      {h.open ? 'Open' : 'Closed'}
+                      {h.open ? t('open') : t('closed')}
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -373,7 +478,7 @@ export default function LeftPanel() {
                     })}
                   </div>
                   <div style={{ marginTop: '8px', display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                    {h.specialties.map(s => (
+                    {(language === 'hi' ? h.specialties_hi : h.specialties).map(s => (
                       <span key={s} style={{
                         fontSize: '10px', padding: '2px 6px', background: 'var(--primary-light)',
                         color: 'var(--primary)', borderRadius: '4px', fontWeight: 600,
@@ -392,7 +497,7 @@ export default function LeftPanel() {
         {activeTab === 'weather' && (
           <div>
             <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-              Regional Weather
+              {t('regional_weather')}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {weatherData.map(w => (
@@ -402,8 +507,12 @@ export default function LeftPanel() {
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text)' }}>{w.icon} {w.location}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{w.condition}</div>
+                      <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text)' }}>
+                        {w.icon} {language === 'hi' ? w.location_hi : w.location}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        {language === 'hi' ? w.condition_hi : w.condition}
+                      </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>{w.temp}°C</div>
@@ -413,7 +522,7 @@ export default function LeftPanel() {
                           background: 'var(--critical-light)', color: 'var(--critical)',
                           textTransform: 'uppercase', marginTop: '4px', display: 'inline-block',
                         }}>
-                          SEVERE
+                          {t('severe')}
                         </div>
                       )}
                     </div>
