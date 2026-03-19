@@ -55,17 +55,15 @@ export default function AdminRolePanel() {
   const handleRespond = () => {
     if (!emergencyCoords) return;
     
-    // Allocate the best ambulance if not already done
+    // Allocate the best LIVE ambulance
     let targetAmbulanceId = activeAmbulanceId;
     if (!targetAmbulanceId) {
-      const nearId = findOptimalHospital(emergencyCoords, false); // reused logic to find closest
-      // Actually find closest ambulance
-      const sortedAmbs = [...ambulances].sort((a, b) => {
-        const dA = Math.sqrt((a.lat - emergencyCoords[0])**2 + (a.lng - emergencyCoords[1])**2);
-        const dB = Math.sqrt((b.lat - emergencyCoords[0])**2 + (b.lng - emergencyCoords[1])**2);
-        return dA - dB;
-      });
-      targetAmbulanceId = sortedAmbs[0]?.id || 'amb-1';
+      if (ambulances.length === 0) {
+        showNotification('No Driver Connected', 'Please connect a driver device to respond.', 'warning');
+        return;
+      }
+      // Pick the first available live driver
+      targetAmbulanceId = ambulances[0].id;
       setActiveAmbulanceId(targetAmbulanceId);
     }
 
@@ -74,7 +72,7 @@ export default function AdminRolePanel() {
     setSosStatus('dispatched');
     startCriticalEvent('high');
     
-    showNotification('Mission Started', `Responding to emergency with Unit ${targetAmbulanceId}.`, 'success');
+    showNotification('Mission Started', `Directly connected to Unit ${targetAmbulanceId}. Routing initiated...`, 'success');
   };
 
   return (
@@ -137,21 +135,26 @@ export default function AdminRolePanel() {
                 </div>
              </div>
 
-             {sosStatus === 'requested' && (
-               <button 
-                 onClick={handleRespond}
-                 style={{
-                   width: '100%', marginTop: '16px', padding: '14px', borderRadius: '12px',
-                   background: 'white', color: 'var(--critical)', border: 'none',
-                   fontSize: '13px', fontWeight: 900, cursor: 'pointer',
-                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                   boxShadow: '0 4px 12px rgba(220, 53, 69, 0.3)',
-                   animation: 'pulseGlow 2s infinite'
-                 }}
-               >
-                 <Zap size={16} fill="currentColor" /> RESPOND TO EMERGENCY
-               </button>
-             )}
+              {sosStatus === 'requested' && (
+                <button 
+                  onClick={handleRespond}
+                  disabled={ambulances.length === 0}
+                  style={{
+                    width: '100%', marginTop: '16px', padding: '14px', borderRadius: '12px',
+                    background: ambulances.length > 0 ? 'white' : 'var(--surface-alt)', 
+                    color: ambulances.length > 0 ? 'var(--critical)' : 'var(--text-muted)',
+                    border: 'none',
+                    fontSize: '13px', fontWeight: 900, cursor: ambulances.length > 0 ? 'pointer' : 'not-allowed',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                    boxShadow: ambulances.length > 0 ? '0 4px 12px rgba(220, 53, 69, 0.4)' : 'none',
+                    animation: ambulances.length > 0 ? 'pulseGlow 2s infinite' : 'none',
+                    opacity: ambulances.length > 0 ? 1 : 0.6
+                  }}
+                >
+                  <Zap size={16} fill="currentColor" /> 
+                  {ambulances.length > 0 ? 'RESPOND TO EMERGENCY' : 'WAIT FOR LIVE DRIVER...'}
+                </button>
+              )}
           </section>
 
           {/* Speed + Golden Hour HUD */}

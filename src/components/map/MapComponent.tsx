@@ -469,7 +469,7 @@ export default function MapComponent() {
       </div>
 
       <MapContainer
-        center={ambulanceStation as L.LatLngExpression}
+        center={[30.0687, 78.2950] as L.LatLngExpression} // Default to AIIMS Rishikesh for center
         zoom={13}
         zoomControl={false}
         style={{ width: '100%', height: '100%', zIndex: 1 }}
@@ -557,8 +557,8 @@ export default function MapComponent() {
           );
         })}
 
-        {/* Ambulance Base Station - Only show if NO live GPS is active to prevent confusion */}
-        {(activeRole === 'simulation' || (activeRole === 'admin' && !isLiveGPS)) && (
+        {/* Ambulance Base Station - Only show during LOCAL Simulation */}
+        {activeRole === 'simulation' && (
            <Marker ref={ambulanceRef} position={ambulanceStation as L.LatLngExpression} icon={L.divIcon({
             html: `<div style="width:40px;height:40px;border-radius:50%;background:#64748b;border:3px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;">
               <svg viewBox="0 0 24 24" fill="white" style="width:20px;height:20px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>

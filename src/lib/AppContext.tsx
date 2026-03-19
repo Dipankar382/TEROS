@@ -128,9 +128,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [paused, setPaused] = useState(false);
   const [currentRouteIdx, setCurrentRouteIdx] = useState(0);
   const [ambulanceProgress, setAmbulanceProgress] = useState(0);
-  const [emergencyCoords, setEmergencyCoords] = useState<[number, number] | null>([30.3950, 78.4410]); // Tehri
+  const [emergencyCoords, setEmergencyCoords] = useState<[number, number] | null>(null);
   const [isLiveGPS, setIsLiveGPS] = useState(false);
-  const [driverCoords, setDriverCoords] = useState<[number, number] | null>([30.3715, 78.4305]); // Tehri
+  const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null);
 
   // Real-time Sync Reference (Native WebSocket to C++ backend)
   const syncSocket = useRef<WebSocket | null>(null);
@@ -301,7 +301,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setSosStatus('dispatched');
           showNotification('Ambulance Allocated', `Unit ${targetId} has been dispatched automatically.`, 'success');
         }
-      }, 10000); // 10s grace period for manual Admin response
+      }, 1000); // Reduce to 1s for "INSTANT" feeling in live demo
       return () => clearTimeout(timer);
     }
   }, [sosStatus, emergencyCoords, activeAmbulanceId, ambulances, calculateDistance, showNotification]);
@@ -326,17 +326,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             showNotification('GPS Access Required', 'Please enable location permissions for live tracking.', 'warning');
             setIsLiveGPS(false);
           } else {
-            console.warn('GPS Error inside watchPosition, using fallback location:', err);
-            // Fallback to mock coords if driver has no location
-            setDriverCoords(prev => {
-              if (!prev) {
-                showNotification('GPS Fallback', 'Live location unavailable. Using fallback location.', 'info');
-                const fallback: [number, number] = [30.3715, 78.4305];
-                setAmbulances(ambs => ambs.map(a => a.id === (activeAmbulanceId || 'amb1') ? { ...a, lat: fallback[0], lng: fallback[1] } : a));
-                return fallback;
-              }
-              return prev;
-            });
+            console.warn('GPS Error inside watchPosition:', err);
+            // Don't set fallback coordinates to maintain ACCURACY
           }
         },
         { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
@@ -354,7 +345,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             showNotification('GPS Access', 'Please enable location to track your position.', 'warning');
           } else {
              console.warn('Patient GPS Error, falling back.', err);
-             setEmergencyCoords(prev => prev || [30.3950, 78.4410]);
+             // Stay at previous or null to avoid inaccurate jumps
           }
         },
         { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
@@ -436,7 +427,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 showNotification('Driver Connected', 'An ambulance driver has joined the network.', 'info');
                 setAmbulances(prev => {
                   if (prev.find(a => a.id === data.id)) return prev;
-                  return [...prev, { id: data.id, name: `Live Unit ${data.id.slice(-4)}`, lat: 30.3715, lng: 78.4305, status: 'available' }];
+                  // Don't set hardcoded lat/lng here, wait for TELEMETRY_UPDATE
+                  return [...prev, { id: data.id, name: `Live Unit ${data.id.slice(-4)}`, lat: 0, lng: 0, status: 'available' }];
                 });
               }
               break;

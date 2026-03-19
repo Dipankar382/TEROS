@@ -64,8 +64,8 @@ export default function DriverRolePanel() {
   };
 
   React.useEffect(() => {
-    if (!activeAmbulanceId) setActiveAmbulanceId('amb1');
-  }, [activeAmbulanceId, setActiveAmbulanceId]);
+    // Wait for ID assignment from sync socket / admin
+  }, [activeAmbulanceId]);
 
   return (
     <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
