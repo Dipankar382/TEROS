@@ -97,15 +97,37 @@ export default function DriverRolePanel() {
             <ShieldAlert size={32} />
             <div>
               <div style={{ fontSize: '14px', fontWeight: 900, textTransform: 'uppercase' }}>
-                {sosStatus === 'requested' ? t('status_requested') : 
-                 sosStatus === 'dispatched' ? t('en_route_patient') : 
-                 sosStatus === 'picked_up' ? t('transporting_hospital') : t('complete')}
+                {sosStatus === 'requested' ? "Incoming SOS Request" : 
+                 sosStatus === 'dispatched' ? "Mission Dispatched" : 
+                 sosStatus === 'picked_up' ? "Patient Onboard" : 
+                 "Mission Completed"}
               </div>
-              <div style={{ fontSize: '12px', opacity: 0.9, fontWeight: 700 }}>
-                 {t('severity')}: {t('critical')}
+              <div style={{ fontSize: '18px', fontWeight: 900 }}>
+                {sosStatus === 'requested' ? "EMERGENCY: RESPONSE NEEDED" : 
+                 sosStatus === 'dispatched' ? "En Route to Scene" : 
+                 "Priority Hospital Route"}
               </div>
             </div>
           </div>
+
+          {sosStatus === 'requested' && (
+            <button 
+              onClick={() => {
+                if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+                  window.navigator.vibrate([200, 100, 200]);
+                }
+                emitSync('ACCEPT_SOS', { trip_id: activeAmbulanceId });
+              }}
+              style={{
+                width: '100%', padding: '20px', background: '#10B981', color: 'white',
+                borderRadius: '16px', border: 'none', fontWeight: 900, cursor: 'pointer',
+                fontSize: '16px', boxShadow: '0 8px 16px rgba(16, 185, 129, 0.3)',
+                textTransform: 'uppercase', letterSpacing: '1px'
+              }}
+            >
+              🚀 {t('respond_to_emergency')}
+            </button>
+          )}
 
           {/* ── Speed + Golden Hour HUD ── */}
           <div style={{

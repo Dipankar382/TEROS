@@ -107,6 +107,7 @@ export const translations = {
     emergency_assistance: 'Emergency Assistance',
     sos_description: 'Press the button below to instantly share your live location with the nearest response unit.',
     sos_active: 'SOS Active',
+    respond_to_emergency: 'Respond to Emergency',
   },
   hi: {
     dispatch: 'डिस्पैच',
@@ -216,6 +217,7 @@ export const translations = {
     emergency_assistance: 'आपातकालीन सहायता',
     sos_description: 'अपनी लाइव लोकेशन साझा करने के लिए नीचे दिया गया बटन दबाएं।',
     sos_active: 'एसओएस सक्रिय',
+    respond_to_emergency: 'आपातकाल का उत्तर दें',
   }
 };
 

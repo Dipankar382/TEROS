@@ -140,12 +140,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [activeRole, setActiveRole] = useState<'simulation' | 'patient' | 'driver' | 'hospital' | 'admin'>('simulation');
   const activeRoleRef = useRef(activeRole);
   const [sosStatus, setSosStatus] = useState<'idle' | 'requested' | 'dispatched' | 'picked_up' | 'delivered'>('idle');
-  const [ambulances, setAmbulances] = useState<Array<{ id: string; name: string; lat: number; lng: number; status: 'available' | 'busy' }>>([
-    { id: 'amb1', name: 'Tehri 01', lat: 30.3715, lng: 78.4305, status: 'available' },
-    { id: 'amb2', name: 'Tehri 02', lat: 30.3860, lng: 78.4320, status: 'available' },
-    { id: 'amb3', name: 'Chamba 01', lat: 30.3475, lng: 78.3880, status: 'available' },
-  ]);
   const [activeAmbulanceId, setActiveAmbulanceId] = useState<string | null>(null);
+  const [assignedDriverId, setAssignedDriverId] = useState<string | null>(null);
+  const [ambulances, setAmbulances] = useState<any[]>([]);
 
   // New Mission Telemetry State
   const [score, setScore] = useState(92);
@@ -445,9 +442,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             // ─── CRITICAL: SOS_ALERT is what Drivers/Admins receive when a Patient calls for help ───
             case 'SOS_ALERT':
               if (data.latitude != null && data.longitude != null) {
+                // If I am a patient, I'm waiting for a driver to 'ACCEPT'
+                // If I am a driver, I see the notification to 'RESPOND'
                 setEmergencyCoords([data.latitude, data.longitude]);
                 setSosStatus('requested');
                 setPatientCondition(data.condition || 'critical');
+                setActiveAmbulanceId(data.trip_id); // The trip ID connects us
                 showNotification('🚨 SOS ALERT', `Incoming ${data.condition || 'Critical'} Emergency Request!`, 'danger');
                 
                 // Aggressive UX Alert for Driver
@@ -460,9 +460,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               }
               break;
 
-            case 'SOS_ACCEPTED':
+            case 'SOS_ASSIGNED':
               setSosStatus('dispatched');
-              showNotification('SOS Accepted', 'An ambulance is being dispatched!', 'success');
+              setAssignedDriverId(data.driver_id);
+              if (activeRoleRef.current === 'patient') {
+                setActiveAmbulanceId(data.driver_id);
+                showNotification('SOS Accepted', 'A live ambulance is en route!', 'success');
+              }
+              break;
+
+            case 'FLEET_UPDATE':
+              setAmbulances(data.ambulances);
               break;
 
             case 'TELEMETRY_UPDATE':
@@ -477,7 +485,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 });
                 
                 // If I am the patient and this is my allocated driver, update local view
-                if (data.driver_id === activeAmbulanceId) {
+                if (data.id === activeAmbulanceId || data.id === assignedDriverId) {
                   setDriverCoords([data.latitude, data.longitude]);
                 }
               }

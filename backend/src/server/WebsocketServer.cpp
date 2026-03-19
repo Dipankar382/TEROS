@@ -54,8 +54,11 @@ void WebsocketServer::on_message(websocketpp::connection_hdl hdl, server::messag
 
         if (type == "AUTH") {
             handle_auth(hdl, payload);
+            broadcast_fleet(); // Update everyone when a new role joins
         } else if (type == "SOS_REQUEST") {
             handle_sos(hdl, payload);
+        } else if (type == "ACCEPT_SOS") {
+            handle_accept_sos(hdl, payload);
         } else if (type == "DRIVER_TELEMETRY") {
             handle_telemetry(hdl, payload);
         } else if (type == "STATE_TRANSITION") {
@@ -160,7 +163,23 @@ void WebsocketServer::handle_sos(websocketpp::connection_hdl hdl, const json& pa
         {"type", "SOS_ACCEPTED"},
         {"trip_id", trip.trip_id}
     };
-    send_to_user(patient->id, response);
+    m_server.send(hdl, response.dump(), websocketpp::frame::opcode::text);
+}
+
+void WebsocketServer::handle_accept_sos(websocketpp::connection_hdl hdl, const json& payload) {
+    User* driver = GlobalState::getInstance().getUserByHdl(hdl);
+    if (!driver || driver->role != UserRole::DRIVER) return;
+
+    std::string trip_id = payload.value("trip_id", "");
+    log_with_time("[DISPATCH] Driver " + driver->id + " accepted SOS " + trip_id);
+
+    // Notify everyone who is responding to which trip
+    json assigned = {
+        {"type", "SOS_ASSIGNED"},
+        {"driver_id", driver->id},
+        {"trip_id", trip_id}
+    };
+    broadcast(assigned);
 }
 
 void WebsocketServer::handle_telemetry(websocketpp::connection_hdl hdl, const json& payload) {
@@ -283,6 +302,28 @@ void WebsocketServer::broadcast_except(const json& msg, websocketpp::connection_
             // Ignore failed send to stale handle
         }
     }
+}
+
+void WebsocketServer::broadcast_fleet() {
+    auto users = GlobalState::getInstance().getAllUsers();
+    json ambulances = json::array();
+    for (const auto& [id, user] : users) {
+        if (user.role == UserRole::DRIVER) {
+            ambulances.push_back({
+                {"id", user.id},
+                {"name", "Live Unit " + user.id.substr(user.id.length() > 4 ? user.id.length()-4 : 0)},
+                {"lat", user.last_location.latitude},
+                {"lng", user.last_location.longitude},
+                {"status", "available"} // Future: track via TripState
+            });
+        }
+    }
+    
+    json fleetMsg = {
+        {"type", "FLEET_UPDATE"},
+        {"ambulances", ambulances}
+    };
+    broadcast(fleetMsg);
 }
 
 void WebsocketServer::send_to_user(const std::string& user_id, const json& msg) {
