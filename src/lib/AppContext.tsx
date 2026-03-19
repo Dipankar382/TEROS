@@ -79,10 +79,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguage] = useState<Language>('en');
   const [manualHospitalSelection, setManualHospitalSelection] = useState(false);
   const [patientType, setPatientType] = useState<'critical' | 'normal'>('critical');
-  const [patientCondition, setPatientCondition] = useState<'stable' | 'deteriorating' | 'critical'>('stable');
+  const [patientCondition, setPatientCondition] = useState<'stable' | 'deteriorating' | 'critical'>('critical');
   const [patientSeverity, setPatientSeverity] = useState<'high' | 'medium' | 'low'>('medium');
   const [heartRate, setHeartRate] = useState(82);
   const [spo2, setSpo2] = useState(98);
+  const vitalsRef = useRef({ spo2: 98, heartRate: 82 });
+
+  useEffect(() => {
+    vitalsRef.current = { spo2, heartRate };
+  }, [spo2, heartRate]);
+
   const [missionStage, setMissionStage] = useState<'idle' | 'to_patient' | 'to_hospital'>('idle');
   const [goldenHour, setGoldenHour] = useState(3600);
   const [criticalEventActive, setCriticalEventActive] = useState(false);
@@ -238,13 +244,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (patientType !== 'critical' || !criticalEventActive || paused) return;
 
     // Condition-based decay: critical patients lose time faster
-    const conditionScale = patientCondition === 'critical' ? 1.5 : patientCondition === 'deteriorating' ? 1.3 : 1.0;
-    // Tick every 1 real second = simSpeedMultiplier simulated seconds × conditionScale
-    const decayPerTick = simSpeedMultiplier * conditionScale;
     const msPerTick = 1000; // fire every real second
 
     const interval = setInterval(() => {
       setGoldenHour(prev => {
+        let aiScale = patientCondition === 'critical' ? 1.5 : patientCondition === 'deteriorating' ? 1.3 : 1.0;
+        const v = vitalsRef.current;
+        // AI Optimization: SpO2 drop or extreme Heart Rates aggressively drain the countdown
+        if (v.spo2 < 90) aiScale += 0.8;
+        if (v.heartRate > 115 || v.heartRate < 50) aiScale += 0.6;
+        
+        const decayPerTick = simSpeedMultiplier * aiScale;
         const next = Math.max(0, prev - decayPerTick);
         if (next <= 0) setCriticalEventActive(false);
         return Math.floor(next);

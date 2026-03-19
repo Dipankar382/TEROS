@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { routes, weatherData } from '@/lib/mockData';
 import { Navigation, MapPin, ShieldAlert, Activity, Globe, CheckCircle2 } from 'lucide-react';
 import { useApp } from '@/lib/AppContext';
@@ -25,8 +25,28 @@ export default function LeftPanel() {
     findOptimalHospital,
     language, setLanguage, t,
     manualHospitalSelection, setManualHospitalSelection,
-    patientCondition, setPatientCondition, heartRate, spo2
+    patientCondition, setPatientCondition, heartRate, spo2,
+    liveTemp, liveWind, liveVisibility, liveRain,
+    currentRouteIdx, ambulanceProgress
   } = useApp();
+
+  const [showTelemetry, setShowTelemetry] = useState(false);
+  
+  const isToPatient = missionStage === 'to_patient';
+  const score = isToPatient ? 88 : 92;
+
+  const elevationData = useMemo(() => {
+    return Array.from({ length: 20 }, (_, i) => 350 + Math.sin(i / 3) * 50 + ((i * 17) % 10));
+  }, []);
+
+  const maxElev = Math.max(...elevationData, 1);
+  const minElev = Math.min(...elevationData);
+  const elevRange = maxElev - minElev || 1;
+
+  const currentSegIdx = Math.floor(ambulanceProgress * elevationData.length);
+
+  const landslideRisk = Math.min(95, (100 - liveVisibility * 20) + (liveRain === 'Moderate' ? 20 : liveRain === 'Heavy' ? 40 : 0));
+  const fogRisk = Math.max(0, 100 - liveVisibility * 30);
 
   const [pickupLocation, setPickupLocation] = useState('Rishikesh, Uttarakhand');
   const [selectedMockId, setSelectedMockId] = useState('');
@@ -411,12 +431,135 @@ export default function LeftPanel() {
               width: '100%', padding: '12px', 
               background: navigating ? 'var(--success)' : 'var(--primary)', 
               color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', 
-              fontSize: '14px', fontWeight: 700, cursor: 'pointer', marginTop: '8px',
+              fontSize: '14px', fontWeight: 700, cursor: 'pointer', marginTop: '16px',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
             }}>
               <Navigation size={16} />
               {navigating ? (missionStage === 'to_patient' ? t('en_route_patient') : t('transporting_hospital')) : t('start_dispatch')}
             </button>
+
+            {/* Advanced Telemetry Accordion */}
+            {navigating && (
+              <div style={{ marginTop: '16px', background: 'var(--surface-alt)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+                <button 
+                  onClick={() => setShowTelemetry(!showTelemetry)}
+                  style={{
+                    width: '100%', padding: '12px 16px', background: 'var(--surface)', border: '1px solid var(--border)',
+                    borderBottom: showTelemetry ? '1px solid var(--border)' : 'none',
+                    borderRadius: showTelemetry ? 'var(--radius-sm) var(--radius-sm) 0 0' : 'var(--radius-sm)',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer',
+                    fontSize: '12px', fontWeight: 700, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.5px'
+                  }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Activity size={16} />
+                    <span>Advanced Telemetry</span>
+                  </div>
+                  <span>{showTelemetry ? '▲' : '▼'}</span>
+                </button>
+                
+                {showTelemetry && (
+                  <div style={{ padding: '16px', border: '1px solid var(--border)', borderTop: 'none', borderBottomLeftRadius: 'var(--radius-sm)', borderBottomRightRadius: 'var(--radius-sm)', background: 'var(--surface)' }}>
+                    
+                    {/* Priority Score */}
+                    <div style={{ marginBottom: '16px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                        {t('priority_score')}
+                      </div>
+                      <div style={{ textAlign: 'center', padding: '12px 0' }}>
+                        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: '36px', fontWeight: 700, color: 'var(--primary)' }}>
+                          {score}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          {t('route_safety_score')}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
+                        <div style={{ flex: score, height: '6px', background: 'var(--primary)', borderRadius: '3px' }} />
+                        <div style={{ flex: 100 - score, height: '6px', background: 'var(--surface-alt)', borderRadius: '3px' }} />
+                      </div>
+                    </div>
+
+                    {/* Terrain Risk Analysis */}
+                    <div style={{ marginBottom: '16px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                        {t('terrain_risk_analysis')}
+                      </div>
+                      {[
+                        { label: t('landslide_risk'), pct: landslideRisk, level: landslideRisk > 70 ? 'High' : landslideRisk > 40 ? 'Medium' : 'Low', color: landslideRisk > 70 ? 'var(--critical)' : landslideRisk > 40 ? 'var(--warning)' : 'var(--success)' },
+                        { label: t('fog_density'), pct: fogRisk, level: fogRisk > 70 ? 'High' : fogRisk > 40 ? 'Medium' : 'Low', color: fogRisk > 70 ? 'var(--critical)' : fogRisk > 40 ? 'var(--warning)' : 'var(--success)' },
+                      ].map((risk, i) => (
+                        <div key={i} style={{ marginBottom: '12px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                            <span style={{ color: 'var(--text)' }}>{risk.label}</span>
+                            <span style={{ fontWeight: 700, color: risk.color }}>{risk.level}</span>
+                          </div>
+                          <div style={{ height: '6px', background: 'var(--surface-alt)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${risk.pct}%`, background: risk.color, borderRadius: '3px', transition: 'width 0.5s' }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Elevation Profile */}
+                    <div style={{ marginBottom: '16px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                        {t('elevation_profile')}
+                      </div>
+                      <div style={{ height: '60px', display: 'flex', alignItems: 'flex-end', gap: '2px', position: 'relative' }}>
+                        {elevationData.map((e: number, i: number) => {
+                          const pct = ((e - minElev) / elevRange) * 100;
+                          const height = 10 + pct * 0.5;
+                          const isCurrent = i === currentSegIdx;
+                          const barColor = isCurrent ? 'var(--primary)' : `hsl(${pct > 70 ? 0 : pct > 40 ? 35 : 200}, 70%, 55%)`;
+                          return (
+                            <div
+                              key={i}
+                              title={`${Math.round(e)}m elevation`}
+                              style={{
+                                flex: 1, borderRadius: '2px 2px 0 0', minHeight: '4px', height: `${height}px`,
+                                background: barColor, opacity: isCurrent ? 1 : 0.6,
+                                boxShadow: isCurrent ? '0 0 10px var(--primary)' : 'none',
+                                transition: 'all 0.3s', position: 'relative'
+                              }}
+                            >
+                              {isCurrent && (
+                                <div style={{
+                                  position: 'absolute', top: '-14px', left: '50%', transform: 'translateX(-50%)',
+                                  fontSize: '8px', fontWeight: 900, color: 'var(--primary)'
+                                }}>▼</div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                        <span>Start</span><span>Mid</span><span>Dest</span>
+                      </div>
+                    </div>
+
+                    {/* Live Conditions */}
+                    <div>
+                      <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                        {t('live_conditions')}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                        {[
+                          { label: 'Temp', val: `${liveTemp}°C` },
+                          { label: 'Vis', val: `${liveVisibility.toFixed(1)} km` },
+                          { label: 'Wind', val: `${liveWind} km/h` },
+                          { label: 'Rain', val: liveRain },
+                        ].map(s => (
+                          <div key={s.label} style={{ background: 'var(--surface-alt)', borderRadius: 'var(--radius-sm)', padding: '8px' }}>
+                            <div style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{s.label}</div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>{s.val}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

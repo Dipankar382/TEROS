@@ -172,10 +172,11 @@ button {
 }
 .leaflet-control-zoom a { color: var(--text) !important; }
 
-/* Responsive adjustments */
+/* Responsive adjustments for all platforms */
 @media (max-width: 1200px) {
   .desktop-only { display: none !important; }
 }
+
 @media (max-width: 900px) {
   .left-panel {
     position: absolute !important;
@@ -183,12 +184,36 @@ button {
     left: 0 !important;
     width: 100% !important;
     min-width: 100% !important;
-    height: 50vh !important;
+    height: 45vh !important;
     border-right: none !important;
     border-top: 1px solid var(--border) !important;
     z-index: 2000 !important;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
+    overflow-y: auto;
   }
   .header-left .logo-text { font-size: 16px !important; }
   .header-left .logo-sub { display: none !important; }
+  
+  /* Telemetry Overlay Mobile Adjustment */
+  .telemetry-overlay {
+    top: 70px !important;
+    left: 10px !important;
+    width: calc(100% - 20px) !important;
+    max-width: 320px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .nav-panel {
+    padding: 10px !important;
+  }
+  .nav-items {
+    gap: 10px !important;
+  }
+  .nav-item span {
+    display: none !important;
+  }
+  .header-right .btn-text {
+    display: none !important;
+  }
 }

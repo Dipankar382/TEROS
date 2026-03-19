@@ -56,10 +56,47 @@ export default function MapComponent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
+  const [completedPathTrace, setCompletedPathTrace] = useState<[number, number][]>([]);
 
   const ambulanceRef = useRef<L.Marker>(null);
   const animFrame = useRef<number>(0);
   const progressRef = useRef(0);
+  const prevPathRef = useRef<number[][] | null>(null);
+
+  const [trafficSegments, setTrafficSegments] = useState<Array<{ path: [number, number][]; heavy: boolean }>>([]);
+
+  // Generate and Update "Live" Traffic Simulation
+  useEffect(() => {
+    const nodes = hospitals.map(h => [h.lat, h.lng] as [number, number]);
+    const generate = () => {
+      const segs: Array<{ path: [number, number][]; heavy: boolean }> = [];
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const dist = Math.sqrt(
+            Math.pow(nodes[i][0] - nodes[j][0], 2) +
+            Math.pow(nodes[i][1] - nodes[j][1], 2)
+          );
+          if (dist < 1.6) { // Coverage for regional arteries
+            segs.push({ 
+              path: [nodes[i], nodes[j]], 
+              heavy: Math.random() > 0.7 
+            });
+          }
+        }
+      }
+      setTrafficSegments(segs);
+    };
+
+    generate();
+    const interval = setInterval(() => {
+      setTrafficSegments(prev => prev.map(s => ({
+        ...s,
+        heavy: Math.random() > 0.75 // Randomize congestion status periodically
+      })));
+    }, 10000); // Shuffle every 10s to feel "live"
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Memoize static icons to prevent expensive Leaflet re-creations on each render
   const hospitalIcon = useMemo(() => L.divIcon({
@@ -104,12 +141,26 @@ export default function MapComponent() {
     progressRef.current = ambulanceProgress;
   }, [ambulanceProgress]);
 
+  // Track path switches to maintain a visual history of the route driven so far
+  useEffect(() => {
+    if (prevPathRef.current && prevPathRef.current !== currentActivePath) {
+      if (progressRef.current > 0 && progressRef.current < 1) {
+        setCompletedPathTrace(prev => [
+          ...prev, 
+          ...(prevPathRef.current!.slice(0, Math.ceil(progressRef.current * prevPathRef.current!.length)) as [number, number][])
+        ]);
+      }
+    }
+    prevPathRef.current = currentActivePath;
+  }, [currentActivePath]);
+
   // Reset paths when mission ends
   useEffect(() => {
     if (!navigating && missionStage === 'idle') {
       setToPatientPath(null);
       setToHospitalPath(null);
       setAmbulanceSpeed(0);
+      setCompletedPathTrace([]);
     }
   }, [navigating, missionStage, setAmbulanceSpeed, setToPatientPath, setToHospitalPath]);
 
@@ -459,6 +510,14 @@ export default function MapComponent() {
           />
         )}
 
+        {/* Historical driven trace after rerouting */}
+        {completedPathTrace.length > 0 && (
+          <Polyline
+            positions={completedPathTrace as L.LatLngExpression[]}
+            pathOptions={{ color: '#A855F7', weight: 6, opacity: 0.8 }}
+          />
+        )}
+
         {/* Alternative Route Previews */}
         {previewRoutes.map(pr => {
           const isSelected = pr.id === previewSelectedId;
@@ -518,23 +577,26 @@ export default function MapComponent() {
           </React.Fragment>
         ))}
 
-        {/* Traffic Overlays */}
-        {trafficLayer && currentActivePath && currentActivePath.map((p, idx) => {
-          if (idx % 8 !== 0) return null;
-          const isHeavy = (idx > 10 && idx < 15) || (idx > 40 && idx < 45);
-          const isMod = (idx > 5 && idx < 10) || (idx > 25 && idx < 30);
-          if (!isHeavy && !isMod) return null;
-          return (
-            <Marker key={`traffic-${idx}`} position={p as L.LatLngExpression} icon={trafficIcon(isHeavy ? '#DC3545' : '#F59E0B')}>
-              <Popup>
-                <div style={{ fontWeight: 700, color: isHeavy ? '#DC3545' : '#F59E0B' }}>
-                  {isHeavy ? 'Heavy Traffic' : 'Moderate Traffic'}
-                </div>
-                <div style={{ fontSize: '11px' }}>AI Predicts {isHeavy ? '12 min' : '4 min'} delay</div>
-              </Popup>
-            </Marker>
-          );
-        })}
+        {/* Global Synthetic Traffic — region-wide hospital-artery congestion */}
+        {trafficLayer && trafficSegments.map((seg, idx) => (
+          <Polyline
+            key={`traf-${idx}`}
+            positions={seg.path as L.LatLngExpression[]}
+            pathOptions={{
+              color: seg.heavy ? '#DC3545' : '#F59E0B',
+              weight: seg.heavy ? 5 : 4,
+              opacity: 0.7,
+              dashArray: seg.heavy ? '4, 10' : '8, 12',
+            }}
+          >
+            <Popup>
+              <div style={{ fontWeight: 700, color: seg.heavy ? '#DC3545' : '#F59E0B' }}>
+                {seg.heavy ? '🔴 Heavy Traffic' : '🟡 Moderate Traffic'}
+              </div>
+              <div style={{ fontSize: '11px' }}>AI predicts {seg.heavy ? '12–18 min' : '4–8 min'} delay</div>
+            </Popup>
+          </Polyline>
+        ))}
       </MapContainer>
     </div>
   );
