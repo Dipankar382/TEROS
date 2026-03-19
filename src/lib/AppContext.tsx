@@ -289,7 +289,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
           setEmergencyCoords(coords);
         },
-        (err) => console.error('Patient GPS Error:', err),
+        (err) => {
+          // Silence GPS errors for patient to avoid console noise
+          if (err.code === 1) {
+            showNotification('GPS Access', 'Please enable location to track your position.', 'warning');
+          }
+          // Fallback to current emergencyCoords if they exist, or don't update
+        },
         { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
       );
     }
