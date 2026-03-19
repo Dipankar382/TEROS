@@ -2,10 +2,15 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { hospitals as initialHospitals, routes, type Hospital } from '@/lib/mockData';
+import { hospitals as initialHospitals, type Hospital } from '@/lib/mockData';
 import { translations, type Language, type TranslationKey } from './translations';
 
 type NotificationType = 'info' | 'success' | 'warning' | 'danger';
+
+type SyncData = {
+  type: string;
+  payload: any; // We use any here as it's a generic relay, but specific handlers cast it
+};
 
 type AppState = {
   patientType: 'critical' | 'normal';
@@ -222,9 +227,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [showNotification]);
 
+  // Automated Allocation Service
   useEffect(() => {
     if (sosStatus === 'requested' && emergencyCoords && activeAmbulanceId === null) {
-      let nearestId = null;
+      let nearestId: string | null = null;
       let minDistance = Infinity;
       
       ambulances.forEach(amb => {
@@ -238,7 +244,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (nearestId) {
-        const targetId = nearestId as string;
+        const targetId = nearestId;
+        // Wrapping updates to ensure they happen together and correctly
         setAmbulances(prev => prev.map(a => a.id === targetId ? { ...a, status: 'busy' } : a));
         setActiveAmbulanceId(targetId);
         setSosStatus('dispatched');
@@ -258,23 +265,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         (pos) => {
           const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
           setDriverCoords(coords);
-          // Update local ambulance list immediately for self-view
           setAmbulances(prev => prev.map(a => 
             a.id === (activeAmbulanceId || 'amb1') ? { ...a, lat: coords[0], lng: coords[1] } : a
           ));
         },
         (err) => {
-          // Silence the console error to avoid spamming the user's logs
-          // Instead, provide a clean UI notification and fallback
-          if (err.code === 1) { // Permission Denied
+          if (err.code === 1) {
             showNotification('GPS Access Required', 'Please enable location permissions for live tracking.', 'warning');
-          } else if (err.code === 3) { // Timeout
-            // Silence timeouts as they are common on desktop browsers
-          } else {
+          } else if (err.code !== 3) {
             showNotification('GPS Status', 'Live location unavailable. Switching to simulation.', 'warning');
           }
-          
-          setIsLiveGPS(false); // This triggers the useEffect cleanup and stops the watch
+          setIsLiveGPS(false);
         },
         { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
       );
@@ -290,10 +291,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     return () => { if (watchId !== null) navigator.geolocation.clearWatch(watchId); };
-  }, [activeRole, isLiveGPS, sosStatus, activeAmbulanceId, showNotification]);
+  }, [activeRole, isLiveGPS, sosStatus, activeAmbulanceId, showNotification, setIsLiveGPS]);
 
   // Helper to emit events to the relay server
-  const emitSync = useCallback((type: string, payload: any) => {
+  const emitSync = useCallback((type: string, payload: unknown) => {
     syncSocket.current?.emit('teros_sync', { type, payload });
   }, []);
 
@@ -309,7 +310,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       showNotification('Sync Connected', 'Real-time cross-device link active.', 'success');
     });
 
-    syncSocket.current.on('teros_sync', (data: { type: string; payload: any }) => {
+    syncSocket.current.on('teros_sync', (data: SyncData) => {
       const { type, payload } = data;
       switch (type) {
         case 'UPDATE_DRIVER_LOCATION':
