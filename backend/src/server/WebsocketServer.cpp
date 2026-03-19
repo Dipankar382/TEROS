@@ -261,7 +261,11 @@ void WebsocketServer::broadcast(const json& msg) {
     auto users = GlobalState::getInstance().getAllUsers();
     std::string payload = msg.dump();
     for (const auto& [id, user] : users) {
-        m_server.send(user.hdl, payload, websocketpp::frame::opcode::text);
+        try {
+            m_server.send(user.hdl, payload, websocketpp::frame::opcode::text);
+        } catch (...) {
+            // Stale connection, will be cleaned up by on_close
+        }
     }
 }
 
@@ -270,9 +274,13 @@ void WebsocketServer::broadcast_except(const json& msg, websocketpp::connection_
     std::string payload = msg.dump();
     auto sender_ptr = sender.lock().get();
     for (const auto& [id, user] : users) {
-        auto user_ptr = user.hdl.lock().get();
-        if (user_ptr != sender_ptr) {
-            m_server.send(user.hdl, payload, websocketpp::frame::opcode::text);
+        try {
+            auto user_ptr = user.hdl.lock().get();
+            if (user_ptr != sender_ptr) {
+                m_server.send(user.hdl, payload, websocketpp::frame::opcode::text);
+            }
+        } catch (...) {
+            // Ignore failed send to stale handle
         }
     }
 }
