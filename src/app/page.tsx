@@ -32,7 +32,7 @@ export default function Home() {
       
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex' }}>
         {/* Left Sidebar Content - Switches based on activeRole */}
-        <div style={{ 
+        <div className="left-panel" style={{ 
           width: '400px', height: '100%', background: 'var(--surface)', 
           borderRight: '1px solid var(--border)', zIndex: 30, 
           overflowY: 'auto', position: 'relative',

@@ -199,7 +199,7 @@ export default function AdminRolePanel() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               {[
                 { label: '🌡️ Temp', val: `${liveTemp}°C` },
-                { label: '👁️ Vis', val: `${liveVisibility.toFixed(1)} km` },
+                { label: '👁️ Vis', val: `${liveVisibility?.toFixed(1) || '0.0'} km` },
                 { label: '💨 Wind', val: `${liveWind} km/h` },
                 { label: '🌧️ Rain', val: liveRain },
               ].map(s => (
@@ -228,7 +228,7 @@ export default function AdminRolePanel() {
                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: a.status === 'available' ? 'var(--success)' : 'var(--critical)', boxShadow: a.status === 'available' ? '0 0 6px var(--success)' : '0 0 6px var(--critical)' }}></div>
                 <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>{a.name}</span>
               </div>
-              <span style={{ fontSize: '10px', fontWeight: 900, color: 'var(--text-muted)' }}>{a.lat.toFixed(4)}, {a.lng.toFixed(4)}</span>
+              <span style={{ fontSize: '10px', fontWeight: 900, color: 'var(--text-muted)' }}>{a.lat?.toFixed(4) || '0.0000'}, {a.lng?.toFixed(4) || '0.0000'}</span>
             </div>
           ))}
         </div>

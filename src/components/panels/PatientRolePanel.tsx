@@ -92,7 +92,7 @@ export default function PatientRolePanel() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               {[
                 { label: '🌡️ Temp', val: `${liveTemp}°C` },
-                { label: '👁️ Visibility', val: `${liveVisibility.toFixed(1)} km` },
+                { label: '👁️ Visibility', val: `${liveVisibility?.toFixed(1) || '0.0'} km` },
                 { label: '💨 Wind', val: `${liveWind} km/h` },
                 { label: '🌧️ Rain', val: liveRain },
               ].map(s => (
@@ -205,7 +205,7 @@ export default function PatientRolePanel() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               {[
                 { label: '🌡️ Temp', val: `${liveTemp}°C` },
-                { label: '👁️ Vis', val: `${liveVisibility.toFixed(1)} km` },
+                { label: '👁️ Vis', val: `${liveVisibility?.toFixed(1) || '0.0'} km` },
                 { label: '💨 Wind', val: `${liveWind} km/h` },
                 { label: '🌧️ Rain', val: liveRain },
               ].map(s => (
@@ -227,7 +227,7 @@ export default function PatientRolePanel() {
               <div>
                 <div style={{ fontSize: '9px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>YOUR LOCATION</div>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
-                  {emergencyCoords[0].toFixed(4)}, {emergencyCoords[1].toFixed(4)}
+                  {emergencyCoords?.[0]?.toFixed(4) || '30.0000'}, {emergencyCoords?.[1]?.toFixed(4) || '78.0000'}
                 </div>
               </div>
             </div>

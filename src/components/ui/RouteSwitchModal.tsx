@@ -27,7 +27,7 @@ function formatDuration(s: number) {
 }
 
 function formatDistance(m: number) {
-  return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
+  return (m && !isNaN(m)) ? (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`) : '0 m';
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -394,7 +394,7 @@ export default function RouteSwitchModal() {
           </div>
           {livePos && (
             <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 500 }}>
-              🛰 From {livePos[0].toFixed(4)}°N, {livePos[1].toFixed(4)}°E
+              🛰 From {livePos?.[0]?.toFixed(4) || '30.000'}°N, {livePos?.[1]?.toFixed(4) || '78.000'}°E
             </div>
           )}
           {patientType === 'critical' && (

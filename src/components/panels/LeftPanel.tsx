@@ -82,7 +82,7 @@ export default function LeftPanel() {
       navigator.geolocation.getCurrentPosition((pos) => {
         const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
         setEmergencyCoords(coords);
-        setPickupLocation(`${coords[0].toFixed(4)}, ${coords[1].toFixed(4)} (Current)`);
+        setPickupLocation(`${coords?.[0]?.toFixed(4) || '0.00'}, ${coords?.[1]?.toFixed(4) || '0.00'} (Current)`);
         startCriticalEvent('high');
         findOptimalHospital(coords);
         showNotification(t('live_incidents'), t('critical_window'), 'warning');
@@ -511,7 +511,7 @@ export default function LeftPanel() {
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                         {[
                           { label: 'Temp', val: `${liveTemp}°C` },
-                          { label: 'Vis', val: `${liveVisibility.toFixed(1)} km` },
+                          { label: 'Vis', val: `${liveVisibility?.toFixed(1) || '0.0'} km` },
                           { label: 'Wind', val: `${liveWind} km/h` },
                           { label: 'Rain', val: liveRain },
                         ].map(s => (

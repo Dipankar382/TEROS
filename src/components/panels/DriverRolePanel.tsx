@@ -223,7 +223,7 @@ export default function DriverRolePanel() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               {[
                 { label: '🌡️ Temp', val: `${liveTemp}°C` },
-                { label: '👁️ Visibility', val: `${liveVisibility.toFixed(1)} km` },
+                { label: '👁️ Visibility', val: `${liveVisibility?.toFixed(1) || '0.0'} km` },
                 { label: '💨 Wind', val: `${liveWind} km/h` },
                 { label: '🌧️ Rain', val: liveRain },
               ].map(s => (
@@ -240,7 +240,7 @@ export default function DriverRolePanel() {
             {sosStatus === 'requested' || sosStatus === 'dispatched' ? (
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                   {canPickUp ? '✓ Within 10m range' : `Distance: ${distToPatient.toFixed(1)}m (Need < 10m)`}
+                   {canPickUp ? '✓ Within 10m range' : `Distance: ${distToPatient?.toFixed(1) || '0.0'}m (Need < 10m)`}
                 </div>
                 <button 
                    disabled={!canPickUp}
@@ -259,7 +259,7 @@ export default function DriverRolePanel() {
             ) : sosStatus === 'picked_up' ? (
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                   {canHandover ? '✓ At Hospital Entry' : `To Hospital: ${distToHospital.toFixed(1)}m (Need < 10m)`}
+                   {canHandover ? '✓ At Hospital Entry' : `To Hospital: ${distToHospital?.toFixed(1) || '0.0'}m (Need < 10m)`}
                 </div>
                 <button 
                    disabled={!canHandover}

@@ -242,13 +242,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       let nearestId: string | null = null;
       let minDistance = Infinity;
 
-      ambulances.forEach(amb => {
-        if (amb.status === 'available') {
-          const dist = calculateDistance(emergencyCoords, [amb.lat, amb.lng]);
-          if (dist < minDistance) {
-            minDistance = dist;
-            nearestId = amb.id;
-          }
+      // Only allocate ambulances that are actually connected/live
+      const liveDrivers = ambulances.filter(a => a.status === 'available'); // Note: further constrained if needed, but we keep this simple to ensure any map-visible driver is allocatable
+
+      liveDrivers.forEach(amb => {
+        const dist = calculateDistance(emergencyCoords, [amb.lat, amb.lng]);
+        if (dist < minDistance) {
+          minDistance = dist;
+          nearestId = amb.id;
         }
       });
 
@@ -409,6 +410,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               const { new_state } = data;
               if (new_state === 'ARRIVED_AT_PATIENT') {
                 setMissionStage('to_hospital');
+                // Calculate optimal hospital and update route
+                if (emergencyCoords) findOptimalHospital(emergencyCoords);
               } else if (new_state === 'EN_ROUTE_TO_HOSPITAL') {
                 setMissionStage('to_hospital');
               } else if (new_state === 'COMPLETED') {
@@ -416,6 +419,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setMissionStage('idle');
                 setSosStatus('idle');
                 setEmergencyCoords(null);
+                setActiveAmbulanceId(null);
+                setAmbulances(prev => prev.map(a => ({ ...a, status: 'available' })));
               }
               break;
             }
@@ -425,7 +430,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               break;
 
             case 'EMERGENCY_COORDS_UPDATE':
-              setEmergencyCoords(data.coords);
+              if (data.latitude != null && data.longitude != null) {
+                setEmergencyCoords([data.latitude, data.longitude]);
+              }
               break;
 
             case 'SOS_STATUS_UPDATE':

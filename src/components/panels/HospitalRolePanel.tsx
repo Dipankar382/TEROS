@@ -82,6 +82,11 @@ export default function HospitalRolePanel() {
           }}>
             <div style={{ color: 'var(--text)', marginBottom: '4px' }}>
               🚑 {t('call_ambulance').toUpperCase()}: <span style={{ color: 'var(--text)', fontWeight: 900 }}>{activeAmbulance?.name || t('dispatch').toUpperCase()}</span>
+              {activeAmbulance && (
+                <span style={{ marginLeft: '10px', fontSize: '10px', opacity: 0.8 }}>
+                  🛰️ {activeAmbulance.lat?.toFixed(4) || '0.0000'}, {activeAmbulance.lng?.toFixed(4) || '0.0000'}
+                </span>
+              )}
             </div>
             <div style={{ color: 'var(--text)' }}>
               📍 {t('active_stage').toUpperCase()}: <span style={{ color: 'var(--primary)', fontWeight: 900 }}>
