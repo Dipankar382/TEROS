@@ -19,7 +19,7 @@ import AdminRolePanel from '@/components/panels/AdminRolePanel';
 import { useApp } from '@/lib/AppContext';
 
 export default function Home() {
-  const { activeRole } = useApp();
+  const { activeRole, isSidebarOpen } = useApp();
 
   return (
     <main style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', position: 'relative' }}>
@@ -33,10 +33,15 @@ export default function Home() {
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex' }}>
         {/* Left Sidebar Content - Switches based on activeRole */}
         <div className="left-panel" style={{ 
-          width: '400px', height: '100%', background: 'var(--surface)', 
-          borderRight: '1px solid var(--border)', zIndex: 30, 
+          width: isSidebarOpen ? '400px' : '0px', 
+          height: '100%', background: 'var(--surface)', 
+          borderRight: isSidebarOpen ? '1px solid var(--border)' : 'none', 
+          zIndex: 30, 
           overflowY: 'auto', position: 'relative',
-          transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+          transform: isSidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+          opacity: isSidebarOpen ? 1 : 0,
+          pointerEvents: isSidebarOpen ? 'auto' : 'none',
         }}>
           <div key={activeRole} style={{ animation: 'slideIn 0.4s ease-out' }}>
             {activeRole === 'simulation' ? <LeftPanel /> : (

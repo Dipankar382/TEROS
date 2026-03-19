@@ -3,11 +3,16 @@
 import React from 'react';
 import { useTheme } from '../ThemeProvider';
 import { useApp } from '@/lib/AppContext';
-import { Moon, Sun, WifiOff, AlertTriangle } from 'lucide-react';
+import { Moon, Sun, WifiOff, AlertTriangle, Menu, X } from 'lucide-react';
 
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
-  const { offlineMode, setOfflineMode, setEmergencyModalOpen, showNotification, language, setLanguage, t } = useApp();
+  const { 
+    offlineMode, setOfflineMode, 
+    setEmergencyModalOpen, showNotification, 
+    language, setLanguage, t,
+    isSidebarOpen, setIsSidebarOpen 
+  } = useApp();
 
   const handleOffline = () => {
     const newMode = !offlineMode;
@@ -25,8 +30,26 @@ export default function Header() {
       background: 'var(--surface)', borderBottom: '1px solid var(--border)', zIndex: 2000,
       position: 'relative', backdropFilter: 'var(--backdrop-blur)', WebkitBackdropFilter: 'var(--backdrop-blur)',
     }}>
-      {/* Left: Logo */}
+      {/* Left: Logo & Hamburger toggle */}
       <div className="header-left" style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <button 
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="mobile-only"
+          style={{
+            padding: '8px',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--surface-alt)',
+            border: '1px solid var(--border)',
+            color: 'var(--text)',
+            display: 'none', // Controlled by globals.css
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer'
+          }}
+        >
+          {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+
         <div style={{ 
           width: '34px', height: '34px', borderRadius: '8px', 
           background: 'linear-gradient(135deg, #1B73E8, #0D47A1)', 

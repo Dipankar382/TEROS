@@ -99,6 +99,8 @@ type AppState = {
   setWeatherLayer: (v: boolean) => void;
   trafficLayer: boolean;
   setTrafficLayer: (v: boolean) => void;
+  isSidebarOpen: boolean;
+  setIsSidebarOpen: (v: boolean) => void;
   emitSync: (type: string, payload: any) => void;
 };
 
@@ -126,9 +128,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [paused, setPaused] = useState(false);
   const [currentRouteIdx, setCurrentRouteIdx] = useState(0);
   const [ambulanceProgress, setAmbulanceProgress] = useState(0);
-  const [emergencyCoords, setEmergencyCoords] = useState<[number, number] | null>(null);
+  const [emergencyCoords, setEmergencyCoords] = useState<[number, number] | null>([30.3950, 78.4410]); // Tehri
   const [isLiveGPS, setIsLiveGPS] = useState(false);
-  const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null);
+  const [driverCoords, setDriverCoords] = useState<[number, number] | null>([30.3715, 78.4305]); // Tehri
 
   // Real-time Sync Reference (Native WebSocket to C++ backend)
   const syncSocket = useRef<WebSocket | null>(null);
@@ -139,9 +141,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const activeRoleRef = useRef(activeRole);
   const [sosStatus, setSosStatus] = useState<'idle' | 'requested' | 'dispatched' | 'picked_up' | 'delivered'>('idle');
   const [ambulances, setAmbulances] = useState<Array<{ id: string; name: string; lat: number; lng: number; status: 'available' | 'busy' }>>([
-    { id: 'amb1', name: 'Ambulance 01', lat: 30.0687, lng: 78.2950, status: 'available' },
-    { id: 'amb2', name: 'Ambulance 02', lat: 30.3165, lng: 78.0322, status: 'available' },
-    { id: 'amb3', name: 'Ambulance 03', lat: 30.1200, lng: 78.2500, status: 'available' },
+    { id: 'amb1', name: 'Tehri 01', lat: 30.3715, lng: 78.4305, status: 'available' },
+    { id: 'amb2', name: 'Tehri 02', lat: 30.3860, lng: 78.4320, status: 'available' },
+    { id: 'amb3', name: 'Chamba 01', lat: 30.3475, lng: 78.3880, status: 'available' },
   ]);
   const [activeAmbulanceId, setActiveAmbulanceId] = useState<string | null>(null);
 
@@ -156,6 +158,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [terrain, setTerrain] = useState(false);
   const [weatherLayer, setWeatherLayer] = useState(false);
   const [trafficLayer, setTrafficLayer] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const t = useCallback((key: TranslationKey) => {
     return translations[language][key] || key;
@@ -194,6 +197,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [showNotification]);
 
   const stopGoldenHour = useCallback(() => setGoldenHour(0), []);
+
+  // Update golden hour whenever condition changes
+  useEffect(() => {
+    if (sosStatus === 'idle') {
+      if (patientCondition === 'critical') setGoldenHour(3600); // 60 mins
+      else if (patientCondition === 'deteriorating') setGoldenHour(7200); // 120 mins
+      else setGoldenHour(10800); // 180 mins
+    }
+  }, [patientCondition, sosStatus]);
+
+  // Golden Hour countdown logic
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if ((sosStatus === 'dispatched' || sosStatus === 'picked_up') && goldenHour > 0 && !paused) {
+      timer = setInterval(() => {
+        setGoldenHour(prev => Math.max(0, prev - 1));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [sosStatus, goldenHour, paused]);
 
   const calculateDistance = useCallback((p1: [number, number], p2: [number, number]) => {
     return Math.sqrt(Math.pow(p1[0] - p2[0], 2) + Math.pow(p1[1] - p2[1], 2));
@@ -384,14 +407,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 showNotification('Patient Connected', 'A patient device has joined the network.', 'info');
               } else if (data.role === 'DRIVER') {
                 showNotification('Driver Connected', 'An ambulance driver has joined the network.', 'info');
+                // Dynamically add to fleet if not present
+                setAmbulances(prev => {
+                  if (prev.find(a => a.id === data.id)) return prev;
+                  return [...prev, { id: data.id, name: `Live Unit ${data.id.slice(-4)}`, lat: 30.3715, lng: 78.4305, status: 'available' }];
+                });
               }
               break;
 
             // ─── CRITICAL: SOS_ALERT is what Drivers/Admins receive when a Patient calls for help ───
             case 'SOS_ALERT':
-              setEmergencyCoords([data.latitude, data.longitude]);
-              setSosStatus('requested');
-              showNotification('🚨 SOS ALERT', `Patient ${data.patient_id} needs emergency assistance!`, 'danger');
+              if (data.latitude != null && data.longitude != null) {
+                setEmergencyCoords([data.latitude, data.longitude]);
+                setSosStatus('requested');
+                showNotification('🚨 SOS ALERT', `Patient ${data.patient_id} needs emergency assistance!`, 'danger');
+              }
               break;
 
             case 'SOS_ACCEPTED':
@@ -401,8 +431,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
             case 'TELEMETRY_UPDATE':
               if (data.latitude != null && data.longitude != null) {
-                setAmbulances(prev => prev.map(a => a.id === data.driver_id ? { ...a, lat: data.latitude, lng: data.longitude } : a));
-                setDriverCoords([data.latitude, data.longitude]);
+                setAmbulances(prev => {
+                  const existing = prev.find(a => a.id === data.driver_id);
+                  if (existing) {
+                    return prev.map(a => a.id === data.driver_id ? { ...a, lat: data.latitude, lng: data.longitude } : a);
+                  }
+                  // Auto-add if somehow joined event was missed
+                  return [...prev, { id: data.driver_id, name: `Live Unit ${data.driver_id.slice(-4)}`, lat: data.latitude, lng: data.longitude, status: 'available' }];
+                });
+                
+                // If I am the patient and this is my allocated driver, update local view
+                if (data.driver_id === activeAmbulanceId) {
+                  setDriverCoords([data.latitude, data.longitude]);
+                }
               }
               break;
 
@@ -565,6 +606,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       terrain, setTerrain,
       weatherLayer, setWeatherLayer,
       trafficLayer, setTrafficLayer,
+      isSidebarOpen, setIsSidebarOpen,
       emitSync,
     }}>
       {children}

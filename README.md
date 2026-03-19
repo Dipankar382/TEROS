@@ -1,85 +1,83 @@
-# Teros: Advanced Emergency Routing AI
+# Teros: Advanced Emergency Healthcare Routing AI
 
 [![Netlify Status](https://api.netlify.com/api/v1/badges/550f4a1d-d517-4167-a73f-3ba9a2b18b26/deploy-status)](https://teros-ai.netlify.app/)
 [![Next.js](https://img.shields.io/badge/Framework-Next.js-black?logo=next.js)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/Library-React-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![Leaflet](https://img.shields.io/badge/Mapping-Leaflet-199900?logo=leaflet&logoColor=white)](https://leafletjs.com/)
+[![C++](https://img.shields.io/badge/Backend-C++-00599C?logo=c%2B%2B&logoColor=white)](https://isocpp.org/)
+[![WebSocket](https://img.shields.io/badge/Sync-WebSocket-010101?logo=socket.io&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
 
-**Teros** is a state-of-the-art emergency routing system designed to optimize ambulance dispatch and navigation. Unlike traditional GPS systems that prioritize the shortest distance, Teros uses a **Survivability Index** to determine the safest and most efficient path, accounting for terrain steepness, real-time traffic, weather conditions, and hospital resource availability.
+**Teros** is a high-performance emergency routing system designed for extreme mountain environments, specifically the **Tehri Garhwal** region. It optimizes ambulance dispatch using a **Survivability Index** that accounts for terrain, weather, and real-time hospital resource availability.
 
-🚀 **[View Live Demo](https://teros-ai.netlify.app/)**
-
----
-
-## 📸 Preview
-
-![Teros Dashboard Preview](public/preview.png)
+🚀 **[View Live Web App](https://teros-ai.netlify.app/)** | ⚙️ **[Backend Server](https://teros-1.onrender.com)**
 
 ---
 
-## ✨ Key Features
-
-- 🏥 **Survival-First Routing**: AI calculates the safest path using a composite survivability index.
-- ⛰️ **Terrain Intelligence**: Real-time altitude and landslide risk analysis integrated into the HUD.
-- ⏱️ **Golden Hour HUD**: High-tech transparent overlay for mission-critical time monitoring.
-- 🚥 **Path-Based Traffic**: Live street-level congestion simulation on arterial road segments.
-- ✨ **Premium Glassmorphism**: Ultra-modern, simplified UI optimized for both desktop and mobile.
-- 🧘 **Strictly Clean Layout**: Optimized component spacing to prevent any UI overlaps or visual clutter.
-- 🤖 **Predictive AI Rerouting**: Dynamic multi-factor path scoring (Weather + Traffic + Safety).
+## 📸 Core Dashboards
+- **Patient Dashboard**: SOS triggers with dynamic **Patient Condition** selection (Stable, Unstable, Critical).
+- **Driver HUD**: Real-time terrain risk alerts, elevation profiles, and golden-hour countdowns.
+- **Admin/Hospital Panel**: Live fleet tracking via WebSocket and ICU bed management.
 
 ---
 
-## 🛠️ Tech Stack
+## ✨ Key Technical Features
 
-- **Core**: [Next.js 15+](https://nextjs.org/) (App Router)
-- **UI**: [React 19](https://react.dev/), [Lucide React](https://lucide.dev/)
-- **Mapping**: [Leaflet](https://leafletjs.com/), [React-Leaflet](https://react-leaflet.js.org/)
-- **Deployment**: [Netlify](https://www.netlify.com/)
-- **Styling**: Vanilla CSS (Modern CSS3)
+### ⛰️ Tehri Garhwal Extreme Mountain Scenario
+Teros is pre-configured with a simulation environment centered around **THDC IHET / Bhagirathipuram**. It simulates:
+- **Steep Gradients**: Navigation through high-altitude terrain with varying risks.
+- **Landslide Prediction**: AI-driven path scoring that avoids high-risk rockfall zones using topographic data.
+
+### ⏱️ Dynamic Golden Hour HUD
+The "Golden Hour" is no longer a static timer. It dynamically shifts based on the **Patient's Condition**:
+- **Critical**: 60 Minutes
+- **Unstable**: 120 Minutes
+- **Stable**: 180 Minutes
+The countdown begins precisely when the ambulance is dispatched, ensuring accurate triage monitoring.
+
+### 🌐 Real-Time C++ WebSocket Sync
+Unlike typical mock demos, Teros uses a **C++ Asynchronous WebSocket Server** (deployed on Render) to:
+- Synchronize live GPS locations across multiple real hardware devices.
+- Filter and allocate only **Online/Connected** drivers for emergency requests.
+- Broadcast SOS alerts instantly to all authenticated drivers on the network.
+
+### 📱 Ultra-Responsive Mobile UI
+- **Hamburger Navigation**: Simplified mobile controls for clean map visibility on Android & iOS.
+- **High Contrast Role Headers**: Optimized for outdoor readability in varying light conditions.
+- **Safari/MacBook GPS Fallback**: High-accuracy manual pinning for cases where browser geolocation is blocked or inaccurate.
 
 ---
 
-## ⚙️ Setup & Installation
+## 🛠️ Technical Architecture
 
-### 1. Clone the repository
+### Frontend (React/Next.js)
+- **Framework**: Next.js 15+ (App Router)
+- **State Management**: React Context API with Native WebSocket integration.
+- **Mapping**: Leaflet.js with custom topographic and traffic layers.
+- **Iconography**: Lucide React / Custom SVG HUDs.
+
+### Backend (C++/Networking)
+- **Engine**: Custom C++ Telemetry Server.
+- **Logic**: Handles authentication (Patient/Driver/Admin roles) and high-frequency coordinate broadcasting.
+- **Hosting**: Render (Web Service).
+
+---
+
+## ⚙️ Local Development
+
+### 1. Frontend Setup
 ```bash
-git clone <your-repo-url>
-cd teros-app
-```
-
-### 2. Install dependencies
-```bash
+git clone https://github.com/Dipankar382/TEROS.git
 npm install
-```
-
-### 3. Configure Environment Variables
-Create a `.env.local` file in the root directory and add:
-```env
-NEXT_PUBLIC_MAP_TILE_URL=https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
-NEXT_PUBLIC_TERRAIN_TILE_URL=https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png
-WEATHER_API_KEY=your_api_key
-ROUTING_API_KEY=your_api_key
-```
-
-### 4. Run Locally
-```bash
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) to see it in action.
+
+### 2. Environment Configuration
+Create a `.env.local`:
+```env
+NEXT_PUBLIC_WS_URL=wss://teros-1.onrender.com
+NEXT_PUBLIC_MAP_TILE_URL=https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
+```
 
 ---
 
-## 🧠 Mission Workflow
-
-1. **Scenario Selection**: The user selects an emergency scenario (e.g., Cardiac Arrest).
-2. **Data Integration**: Teros fetches real-time terrain, traffic, and hospital data.
-3. **Route Optimization**: The AI calculates multiple routes and assigns a **Survivability Index**.
-4. **Dispatch**: The safest route is displayed, and the Golden Hour timer begins.
-5. **Real-time Navigation**: The ambulance follows the path with dynamic re-routing.
-
----
-
-## 📄 License
-
-This project is developed for the **Yukti Hackathon**. © 2026 Pat Hawkers.
-
+## 📄 License & Recognition
+Developed for the **Yukti Hackathon**. Produced by **Pat Hawkers**.
+© 2026 Teros AI Systems.

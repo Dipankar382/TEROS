@@ -7,8 +7,8 @@ import 'leaflet/dist/leaflet.css';
 import { useApp } from '@/lib/AppContext';
 import { hospitals, weatherData, routes } from '@/lib/mockData';
 
-// Fixed starting point (ambulance station)
-const ambulanceStation: [number, number] = [30.1200, 78.2500];
+// Fixed starting point (ambulance station) - Tehri Garhwal Region
+const ambulanceStation: [number, number] = [30.3715, 78.4305];
 
 // Helper to fit map bounds to a route
 function MapBoundsController({ routeParams }: { routeParams: number[][] | null }) {

@@ -239,6 +239,9 @@ button {
     width: calc(100% - 20px) !important;
     max-width: 320px !important;
   }
+  .mobile-only {
+    display: flex !important;
+  }
 }
 
 @media (max-width: 600px) {

@@ -38,8 +38,8 @@ export default function RoleSelector() {
             onClick={() => setActiveRole(role.id as any)}
             style={{
               padding: '8px 16px', borderRadius: '25px', border: 'none',
-              background: isActive ? role.color : 'transparent',
-              color: isActive ? 'white' : 'var(--text-secondary)',
+              background: isActive ? role.color : 'var(--surface-alt)',
+              color: isActive ? 'white' : 'var(--text)',
               fontSize: '11px', fontWeight: 800, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
               transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',

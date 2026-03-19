@@ -13,6 +13,7 @@ export default function PatientRolePanel() {
     goldenHour, ambulanceSpeed,
     liveTemp, liveWind, liveVisibility, liveRain,
     heartRate, spo2,
+    patientCondition, setPatientCondition,
     t, language, emitSync
   } = useApp();
 
@@ -32,14 +33,12 @@ export default function PatientRolePanel() {
         const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
         setEmergencyCoords(coords);
         setSosStatus('requested');
-        startCriticalEvent('high');
         emitSync('SOS_REQUEST', { latitude: coords[0], longitude: coords[1] });
         showNotification('🚨 SOS SENT', 'Your location has been shared with the nearest response unit.', 'danger');
       }, () => {
-        const coords: [number, number] = [30.0869, 78.2676];
+        const coords: [number, number] = [30.3950, 78.4410]; // Tehri Fallback
         setEmergencyCoords(coords);
         setSosStatus('requested');
-        startCriticalEvent('high');
         emitSync('SOS_REQUEST', { latitude: coords[0], longitude: coords[1] });
         showNotification('🚨 SOS SENT', 'Location shared via network IP.', 'danger');
       });
@@ -57,6 +56,39 @@ export default function PatientRolePanel() {
 
       {sosStatus === 'idle' ? (
         <>
+          {/* Patient Condition Selector */}
+          <div style={{
+            background: 'var(--surface-alt)', borderRadius: '16px', padding: '16px',
+            border: '1px solid var(--border)'
+          }}>
+            <div style={{ fontSize: '10px', fontWeight: 900, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>
+              SELECT PATIENT CONDITION
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+              {[
+                { id: 'stable', label: 'STABLE', color: 'var(--success)' },
+                { id: 'deteriorating', label: 'UNSTABLE', color: 'var(--warning)' },
+                { id: 'critical', label: 'CRITICAL', color: 'var(--critical)' },
+              ].map(c => (
+                <button
+                  key={c.id}
+                  onClick={() => setPatientCondition(c.id as any)}
+                  style={{
+                    padding: '12px 8px', borderRadius: '12px', border: '1px solid',
+                    borderColor: patientCondition === c.id ? c.color : 'var(--border)',
+                    background: patientCondition === c.id ? `${c.color}15` : 'var(--surface)',
+                    color: patientCondition === c.id ? c.color : 'var(--text-muted)',
+                    fontSize: '11px', fontWeight: 800, cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: patientCondition === c.id ? `0 4px 12px ${c.color}25` : 'none'
+                  }}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* SOS Button */}
           <div style={{ textAlign: 'center', padding: '32px 20px' }}>
             <button 
@@ -102,6 +134,28 @@ export default function PatientRolePanel() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Manual Location Fallback (For MacBook/Safari) */}
+          <div style={{
+            background: 'var(--primary-light)', borderRadius: '16px', padding: '16px',
+            border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', gap: '12px'
+          }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '10px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>GPS INACCURATE?</div>
+              <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '4px 0 0 0', fontWeight: 600 }}>Click anywhere on the map to pin your exact location manually.</p>
+            </div>
+            <button 
+              onClick={() => {
+                showNotification('Map Pinning Enabled', 'Click on the map to set your emergency location.', 'info');
+              }}
+              style={{
+                padding: '8px 12px', background: 'var(--primary)', color: 'white',
+                borderRadius: '8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer'
+              }}
+            >
+              PIN MY LOCATION
+            </button>
           </div>
         </>
       ) : (

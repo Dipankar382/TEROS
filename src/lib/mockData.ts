@@ -135,6 +135,28 @@ export const routes: Record<string, Route[]> = {
       ],
       elevation: [372, 365, 358, 352, 348, 345, 350, 358, 365, 375, 388, 395, 400, 405]
     }
+  ],
+  thdc_hospital: [
+    {
+      name: 'Bhagirathipuram Highland Route', name_hi: 'भागीरथीपुरम हाइलैंड रूट',
+      distance: '4.2 km', time: '12 min', steepness: 'Extreme', steepness_hi: 'अत्यधिक',
+      weatherRisk: 'High', weatherRisk_hi: 'उच्च', recommended: true, score: 85,
+      path: [
+        [30.4132, 78.4116], [30.4080, 78.4150], [30.4020, 78.4200], [30.3950, 78.4250],
+        [30.3880, 78.4280], [30.3820, 78.4295], [30.3715, 78.4305]
+      ],
+      elevation: [1250, 1180, 1120, 1050, 980, 920, 850]
+    },
+    {
+      name: 'Old Tehri Submerged Road', name_hi: 'पुरानी टिहरी जलमग्न सड़क',
+      distance: '6.8 km', time: '15 min', steepness: 'Medium', steepness_hi: 'मध्यम',
+      weatherRisk: 'Very High', weatherRisk_hi: 'बहुत अधिक', recommended: false, score: 62,
+      path: [
+        [30.4132, 78.4116], [30.4150, 78.4200], [30.4100, 78.4300], [30.4000, 78.4400],
+        [30.3850, 78.4450], [30.3750, 78.4380], [30.3715, 78.4305]
+      ],
+      elevation: [1250, 1260, 1240, 1200, 1150, 1000, 850]
+    }
   ]
 };
 
