@@ -27,7 +27,8 @@ export default function LeftPanel() {
     patientCondition, setPatientCondition, heartRate, spo2,
     liveTemp, liveWind, liveVisibility, liveRain,
     currentRouteIdx, ambulanceProgress,
-    isLiveGPS, setIsLiveGPS, driverCoords, setDriverCoords
+    isLiveGPS, setIsLiveGPS, driverCoords, setDriverCoords,
+    setActiveRole
   } = useApp();
 
   const [showTelemetry, setShowTelemetry] = useState(false);
@@ -525,48 +526,42 @@ export default function LeftPanel() {
                 )}
               </div>
             )}
-            {/* Live Demo Mode */}
+            {/* Live Demo Mode Redirection */}
             <section style={{ 
-              padding: '16px', background: 'var(--primary-light)', 
-              borderRadius: 'var(--radius-md)', border: '1px solid var(--primary)',
-              display: 'flex', flexDirection: 'column', gap: '12px'
+              padding: '24px', background: 'var(--primary)', 
+              borderRadius: 'var(--radius-lg)', border: 'none',
+              display: 'flex', flexDirection: 'column', gap: '16px',
+              boxShadow: '0 8px 16px rgba(37, 99, 235, 0.2)',
+              marginTop: '12px'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Activity size={18} color="var(--primary)" />
-                <div style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase' }}>
-                  Live Demo Mode
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ padding: '8px', background: 'rgba(255,255,255,0.2)', borderRadius: '10px' }}>
+                  <Activity size={20} color="white" />
+                </div>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 900, color: 'white', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Live Demo Mode
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.8)' }}>
+                    Multi-Role Ecosystem
+                  </div>
                 </div>
               </div>
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <button 
-                  onClick={() => setIsLiveGPS(!isLiveGPS)}
-                  style={{
-                    width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--primary)',
-                    background: isLiveGPS ? 'var(--primary)' : 'white',
-                    color: isLiveGPS ? 'white' : 'var(--primary)',
-                    fontSize: '11px', fontWeight: 800, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                    transition: 'all 0.2s'
-                  }}>
-                  {isLiveGPS ? '📶 DISABLE DEVICE GPS' : '📡 ENABLE DEVICE GPS'}
-                </button>
-                
-                <div style={{ fontSize: '10px', color: 'var(--primary)', opacity: 0.8, textAlign: 'center', fontStyle: 'italic' }}>
-                  {isLiveGPS 
-                    ? 'Currently tracking this device\'s real location' 
-                    : 'Simulation mode active (pre-calculated paths)'}
-                </div>
-                
-                {!isLiveGPS && driverCoords && (
-                  <div style={{ 
-                    padding: '8px', background: 'white', borderRadius: '6px', 
-                    fontSize: '10px', color: 'var(--success)', fontWeight: 700,
-                    textAlign: 'center', border: '1px dashed var(--success)'
-                  }}>
-                    🔄 SYNCED LOCATION RECEIVED
-                  </div>
-                )}
+              <button 
+                onClick={() => setActiveRole('patient')}
+                style={{
+                  width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
+                  background: 'white', color: 'var(--primary)',
+                  fontSize: '13px', fontWeight: 900, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                  boxShadow: '0 4px 8px rgba(0,0,0,0.1)', transition: 'all 0.2s'
+                }}>
+                🚀 LAUNCH FULL LIVE DEMO
+              </button>
+
+              <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.7)', textAlign: 'center', fontStyle: 'italic', lineHeight: 1.4 }}>
+                Experience real-time SOS tracking between Patients, Drivers, and Hospitals.
               </div>
             </section>
           </div>

@@ -17,6 +17,14 @@ type AppState = {
   heartRate: number;
   spo2: number;
   setMissionStage: (s: 'idle' | 'to_patient' | 'to_hospital') => void;
+  activeRole: 'simulation' | 'patient' | 'driver' | 'hospital' | 'admin';
+  setActiveRole: (r: 'simulation' | 'patient' | 'driver' | 'hospital' | 'admin') => void;
+  sosStatus: 'idle' | 'requested' | 'dispatched' | 'picked_up' | 'delivered';
+  setSosStatus: (s: 'idle' | 'requested' | 'dispatched' | 'picked_up' | 'delivered') => void;
+  ambulances: Array<{ id: string; name: string; lat: number; lng: number; status: 'available' | 'busy' }>;
+  setAmbulances: React.Dispatch<React.SetStateAction<Array<{ id: string; name: string; lat: number; lng: number; status: 'available' | 'busy' }>>>;
+  activeAmbulanceId: string | null;
+  setActiveAmbulanceId: (id: string | null) => void;
   isLiveGPS: boolean;
   setIsLiveGPS: (v: boolean) => void;
   driverCoords: [number, number] | null;
@@ -44,6 +52,7 @@ type AppState = {
   sosActive: boolean;
   setSosActive: (v: boolean) => void;
   hospitalData: Hospital[];
+  setHospitalData: React.Dispatch<React.SetStateAction<Hospital[]>>;
   ambulanceSpeed: number;
   setAmbulanceSpeed: (s: number) => void;
   simSpeedMultiplier: number;
@@ -78,6 +87,13 @@ type AppState = {
   score: number;
   elevationData: number[];
   currentSegIdx: number;
+  calculateDistance: (p1: [number, number], p2: [number, number]) => number;
+  terrain: boolean;
+  setTerrain: (v: boolean) => void;
+  weatherLayer: boolean;
+  setWeatherLayer: (v: boolean) => void;
+  trafficLayer: boolean;
+  setTrafficLayer: (v: boolean) => void;
 };
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -108,6 +124,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isLiveGPS, setIsLiveGPS] = useState(false);
   const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null);
   const syncChannel = useRef<BroadcastChannel | null>(null);
+
+  const [activeRole, setActiveRole] = useState<'simulation' | 'patient' | 'driver' | 'hospital' | 'admin'>('simulation');
+  const [sosStatus, setSosStatus] = useState<'idle' | 'requested' | 'dispatched' | 'picked_up' | 'delivered'>('idle');
+  const [ambulances, setAmbulances] = useState<Array<{ id: string; name: string; lat: number; lng: number; status: 'available' | 'busy' }>>([
+    { id: 'amb1', name: 'Ambulance 01', lat: 30.0687, lng: 78.2950, status: 'available' },
+    { id: 'amb2', name: 'Ambulance 02', lat: 30.3165, lng: 78.0322, status: 'available' },
+    { id: 'amb3', name: 'Ambulance 03', lat: 30.1200, lng: 78.2500, status: 'available' },
+  ]);
+  const [activeAmbulanceId, setActiveAmbulanceId] = useState<string | null>(null);
   
   // New Mission Telemetry State
   const [score, setScore] = useState(92);
@@ -117,52 +142,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [toHospitalPath, setToHospitalPath] = useState<number[][] | null>(null);
   const [previewRoutes, setPreviewRoutes] = useState<Array<{ id: string; path: number[][] }>>([]);
   const [previewSelectedId, setPreviewSelectedId] = useState<string | null>(null);
-
-  // Cross-tab Synchronization Logic
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    syncChannel.current = new BroadcastChannel('teros_live_sync');
-    
-    syncChannel.current.onmessage = (event) => {
-      const { type, payload } = event.data;
-      switch (type) {
-        case 'UPDATE_DRIVER_LOCATION':
-          if (!isLiveGPS) setDriverCoords(payload);
-          break;
-        case 'UPDATE_EMERGENCY_COORDS':
-          setEmergencyCoords(payload);
-          break;
-        case 'UPDATE_MISSION_STAGE':
-          setMissionStage(payload);
-          break;
-        case 'TRIGGER_SOS_SYNC':
-          setNavigating(true);
-          setMissionStage('to_patient');
-          setEmergencyCoords(payload);
-          break;
-      }
-    };
-
-    return () => syncChannel.current?.close();
-  }, [isLiveGPS]);
-
-  // Broadcast local changes
-  useEffect(() => {
-    if (isLiveGPS && driverCoords) {
-      syncChannel.current?.postMessage({ type: 'UPDATE_DRIVER_LOCATION', payload: driverCoords });
-    }
-  }, [driverCoords, isLiveGPS]);
-
-  useEffect(() => {
-    if (emergencyCoords) {
-      syncChannel.current?.postMessage({ type: 'UPDATE_EMERGENCY_COORDS', payload: emergencyCoords });
-    }
-  }, [emergencyCoords]);
-
-  useEffect(() => {
-    syncChannel.current?.postMessage({ type: 'UPDATE_MISSION_STAGE', payload: missionStage });
-  }, [missionStage]);
+  const [terrain, setTerrain] = useState(false);
+  const [weatherLayer, setWeatherLayer] = useState(false);
+  const [trafficLayer, setTrafficLayer] = useState(false);
 
   const t = useCallback((key: TranslationKey) => {
     return translations[language][key] || key;
@@ -370,6 +352,176 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!manualHospitalSelection) setCurrentRouteIdx(0);
   }, [selectedHospital, manualHospitalSelection]);
 
+  const calculateDistance = useCallback((p1: [number, number], p2: [number, number]) => {
+    const R = 6371e3; // meters
+    const phi1 = p1[0] * Math.PI/180;
+    const phi2 = p2[0] * Math.PI/180;
+    const deltaPhi = (p2[0]-p1[0]) * Math.PI/180;
+    const deltaLambda = (p2[1]-p1[1]) * Math.PI/180;
+
+    const a = Math.sin(deltaPhi/2) * Math.sin(deltaPhi/2) +
+              Math.cos(phi1) * Math.cos(phi2) *
+              Math.sin(deltaLambda/2) * Math.sin(deltaLambda/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c; // in meters
+  }, []);
+
+  // Automated Ambulance Allocation Logic
+  useEffect(() => {
+    if (activeRole === 'patient' && sosStatus === 'requested' && emergencyCoords && !activeAmbulanceId) {
+      let nearestId: string | null = null;
+      let minDistance = Infinity;
+
+      ambulances.forEach(amb => {
+        if (amb.status === 'available') {
+          const dist = calculateDistance([amb.lat, amb.lng], emergencyCoords);
+          if (dist < minDistance) {
+            minDistance = dist;
+            nearestId = amb.id;
+          }
+        }
+      });
+
+      if (nearestId) {
+        const targetId = nearestId as string;
+        setAmbulances(prev => prev.map(a => a.id === targetId ? { ...a, status: 'busy' } : a));
+        setActiveAmbulanceId(targetId);
+        setSosStatus('dispatched');
+        showNotification('Ambulance Allocated', `Unit ${targetId} has been dispatched to your location.`, 'success');
+      }
+    }
+  }, [sosStatus, emergencyCoords, activeAmbulanceId, ambulances, activeRole, calculateDistance, setAmbulances, setActiveAmbulanceId, setSosStatus, showNotification]);
+
+  // Continuous GPS Tracking (Driver & Patient)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !navigator.geolocation) return;
+    
+    let watchId: number | null = null;
+
+    if (activeRole === 'driver' && isLiveGPS) {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+          setDriverCoords(coords);
+          // Update local ambulance list immediately for self-view
+          setAmbulances(prev => prev.map(a => 
+            a.id === (activeAmbulanceId || 'amb1') ? { ...a, lat: coords[0], lng: coords[1] } : a
+          ));
+        },
+        (err) => {
+          // Silence the console error to avoid spamming the user's logs
+          // Instead, provide a clean UI notification and fallback
+          if (err.code === 1) { // Permission Denied
+            showNotification('GPS Access Required', 'Please enable location permissions for live tracking.', 'warning');
+          } else if (err.code === 3) { // Timeout
+            // Silence timeouts as they are common on desktop browsers
+          } else {
+            showNotification('GPS Status', 'Live location unavailable. Switching to simulation.', 'warning');
+          }
+          
+          setIsLiveGPS(false); // This triggers the useEffect cleanup and stops the watch
+        },
+        { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
+      );
+    } else if (activeRole === 'patient' && sosStatus !== 'idle') {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+          setEmergencyCoords(coords);
+        },
+        (err) => console.error('Patient GPS Error:', err),
+        { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
+      );
+    }
+
+    return () => { if (watchId !== null) navigator.geolocation.clearWatch(watchId); };
+  }, [activeRole, isLiveGPS, sosStatus, activeAmbulanceId]);
+
+  // Synchronization and Real-time Broadcasting Logic
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    syncChannel.current = new BroadcastChannel('teros_live_sync');
+    
+    syncChannel.current.onmessage = (event) => {
+      const { type, payload } = event.data;
+      switch (type) {
+        case 'UPDATE_DRIVER_LOCATION':
+          setAmbulances(prev => prev.map(a => a.id === payload.id ? { ...a, lat: payload.lat, lng: payload.lng } : a));
+          if (!isLiveGPS && activeAmbulanceId === payload.id) setDriverCoords([payload.lat, payload.lng]);
+          break;
+        case 'UPDATE_EMERGENCY_COORDS':
+          setEmergencyCoords(payload);
+          break;
+        case 'UPDATE_SOS_STATUS':
+          setSosStatus(payload.status);
+          if (payload.activeAmbulanceId) setActiveAmbulanceId(payload.activeAmbulanceId);
+          if (payload.selectedHospital) setSelectedHospital(payload.selectedHospital);
+          
+          // Sync missionStage for map routing
+          if (payload.status === 'dispatched') {
+            setNavigating(true);
+            setMissionStage('to_patient');
+          } else if (payload.status === 'picked_up') {
+            setMissionStage('to_hospital');
+          } else if (payload.status === 'idle' || payload.status === 'delivered') {
+            setNavigating(false);
+            setMissionStage('idle');
+            setEmergencyCoords(null);
+            setDriverCoords(null);
+          }
+          break;
+        case 'UPDATE_HOSPITAL_DATA':
+          setHospitalData(payload);
+          break;
+        case 'UPDATE_MAP_LAYERS':
+          setTerrain(payload.terrain);
+          setWeatherLayer(payload.weatherLayer);
+          setTrafficLayer(payload.trafficLayer);
+          break;
+      }
+    };
+
+    return () => syncChannel.current?.close();
+  }, [isLiveGPS, activeAmbulanceId]);
+
+  useEffect(() => {
+    if (activeRole === 'driver' && driverCoords) {
+      // Throttle/Gate broadcasts to prevent saturating the channel in simulation mode
+      const payload = { id: activeAmbulanceId || 'amb1', lat: driverCoords[0], lng: driverCoords[1] };
+      syncChannel.current?.postMessage({ type: 'UPDATE_DRIVER_LOCATION', payload });
+    }
+  }, [driverCoords, activeRole, activeAmbulanceId]);
+
+  useEffect(() => {
+    if (activeRole === 'patient' && emergencyCoords) {
+      syncChannel.current?.postMessage({ type: 'UPDATE_EMERGENCY_COORDS', payload: emergencyCoords });
+    }
+  }, [emergencyCoords, activeRole]);
+
+  useEffect(() => {
+    syncChannel.current?.postMessage({ 
+      type: 'UPDATE_SOS_STATUS', 
+      payload: { status: sosStatus, activeAmbulanceId, selectedHospital } 
+    });
+  }, [sosStatus, activeAmbulanceId, selectedHospital]);
+
+  useEffect(() => {
+    if (activeRole === 'admin' || activeRole === 'simulation') {
+      syncChannel.current?.postMessage({ 
+        type: 'UPDATE_MAP_LAYERS', 
+        payload: { terrain, weatherLayer, trafficLayer } 
+      });
+    }
+  }, [terrain, weatherLayer, trafficLayer, activeRole]);
+
+  useEffect(() => {
+    if (activeRole === 'hospital' || activeRole === 'admin') {
+      syncChannel.current?.postMessage({ type: 'UPDATE_HOSPITAL_DATA', payload: hospitalData });
+    }
+  }, [hospitalData, activeRole]);
+
   return (
     <AppContext.Provider value={{
       patientType, setPatientType,
@@ -390,6 +542,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       offlineMode, setOfflineMode,
       sosActive, setSosActive,
       hospitalData,
+      setHospitalData,
       ambulanceSpeed, setAmbulanceSpeed,
       simSpeedMultiplier, setSimSpeedMultiplier,
       notification, showNotification,
@@ -408,9 +561,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       previewSelectedId, setPreviewSelectedId,
       isLiveGPS, setIsLiveGPS,
       driverCoords, setDriverCoords,
+      activeRole, setActiveRole,
+      sosStatus, setSosStatus,
+      ambulances, setAmbulances,
+      activeAmbulanceId, setActiveAmbulanceId,
       score,
       elevationData,
       currentSegIdx,
+      calculateDistance,
+      terrain, setTerrain,
+      weatherLayer, setWeatherLayer,
+      trafficLayer, setTrafficLayer,
     }}>
       {children}
     </AppContext.Provider>

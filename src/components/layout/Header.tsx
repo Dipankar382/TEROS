@@ -7,7 +7,7 @@ import { Moon, Sun, WifiOff, AlertTriangle } from 'lucide-react';
 
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
-  const { offlineMode, setOfflineMode, setEmergencyModalOpen, showNotification } = useApp();
+  const { offlineMode, setOfflineMode, setEmergencyModalOpen, showNotification, language, setLanguage, t } = useApp();
 
   const handleOffline = () => {
     const newMode = !offlineMode;
@@ -45,32 +45,38 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Center: Status Pills */}
+      {/* Center: Status Pills & Language Toggle */}
       <div className="desktop-only" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <button 
+          onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
+          style={{
+            padding: '5px 12px', borderRadius: '20px',
+            fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px',
+            background: 'var(--primary-light)', color: 'var(--primary)',
+            border: '1px solid var(--primary)', cursor: 'pointer',
+            marginRight: '12px'
+          }}
+        >
+          {language === 'en' ? 'हिन्दी' : 'ENGLISH'}
+        </button>
+
         <div style={{
           display: 'flex', alignItems: 'center', gap: '6px',
           padding: '5px 12px', borderRadius: '20px',
-          fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px',
+          fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px',
           background: 'var(--success-light)', color: 'var(--success)',
         }}>
           <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success)', animation: 'pulseGlow 2s infinite' }} />
-          System Online
+          SYSTEM LIVE
         </div>
         <div style={{
           display: 'flex', alignItems: 'center', gap: '6px',
           padding: '5px 12px', borderRadius: '20px',
-          fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px',
-          background: 'var(--surface-alt)', color: 'var(--text-muted)',
+          fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px',
+          background: 'var(--surface-alt)', color: 'var(--text-secondary)',
+          border: '1px solid var(--border)'
         }}>
-          Weather: Live
-        </div>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '6px',
-          padding: '5px 12px', borderRadius: '20px',
-          fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px',
-          background: 'var(--surface-alt)', color: 'var(--text-muted)',
-        }}>
-          GIS: Active
+          {t('weather')}: LIVE
         </div>
       </div>
 

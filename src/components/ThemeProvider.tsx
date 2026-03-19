@@ -20,13 +20,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const saved = localStorage.getItem('teros-theme') as Theme | null;
     const preferDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
-    if (saved) {
-      setTheme(saved);
-      document.documentElement.setAttribute('data-theme', saved);
-    } else if (preferDark) {
-      setTheme('dark');
-      document.documentElement.setAttribute('data-theme', 'dark');
-    }
+    const initialTheme = saved || (preferDark ? 'dark' : 'light');
+    setTheme(initialTheme);
+    document.documentElement.setAttribute('data-theme', initialTheme);
+
+    const channel = new BroadcastChannel('teros_theme_sync');
+    channel.onmessage = (e) => {
+      if (e.data.theme) {
+        setTheme(e.data.theme);
+        document.documentElement.setAttribute('data-theme', e.data.theme);
+      }
+    };
+
+    return () => channel.close();
   }, []);
 
   const toggleTheme = () => {
@@ -34,6 +40,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setTheme(newTheme);
     localStorage.setItem('teros-theme', newTheme);
     document.documentElement.setAttribute('data-theme', newTheme);
+    
+    // Broadcast to other tabs
+    const channel = new BroadcastChannel('teros_theme_sync');
+    channel.postMessage({ theme: newTheme });
+    channel.close();
   };
 
   // Prevent flash but still provide context

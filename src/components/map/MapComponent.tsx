@@ -34,7 +34,8 @@ function CenterOnAmbulance({ trigger, markerRef }: { trigger: number; markerRef:
   useEffect(() => {
     if (markerRef.current && typeof map.setView === 'function') {
       try {
-        map.setView(markerRef.current.getLatLng(), 15, { animate: false });
+        const coords = markerRef.current.getLatLng();
+        map.setView(coords, 15, { animate: true });
       } catch (e) {
         console.error('CenterOnAmbulance Error:', e);
       }
@@ -57,12 +58,11 @@ export default function MapComponent() {
     toHospitalPath, setToHospitalPath,
     previewRoutes, previewSelectedId,
     mockEmergencies,
-    isLiveGPS, driverCoords, setDriverCoords
+    isLiveGPS, driverCoords, setDriverCoords,
+    ambulances, activeAmbulanceId, activeRole, sosStatus,
+    terrain, setTerrain, weatherLayer, setWeatherLayer, trafficLayer, setTrafficLayer
   } = useApp();
 
-  const [terrain, setTerrain] = useState(false);
-  const [weatherLayer, setWeatherLayer] = useState(false);
-  const [trafficLayer, setTrafficLayer] = useState(false);
   const [centerTrigger, setCenterTrigger] = useState(0);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [completedPathTrace, setCompletedPathTrace] = useState<[number, number][]>([]);
@@ -229,31 +229,12 @@ export default function MapComponent() {
       .catch(err => console.error('Stage 2 Fetch Error', err));
   }, [emergencyCoords, selectedHospital, toHospitalPath, setToHospitalPath]);
 
-  // Real-time GPS Tracking Logic
+  // Sync local ambulance marker with driverCoords (for dispatcher/self view)
   useEffect(() => {
-    if (!isLiveGPS) return;
-
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const newCoords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-        setDriverCoords(newCoords);
-        if (ambulanceRef.current) {
-          ambulanceRef.current.setLatLng(newCoords);
-        }
-      },
-      (err) => console.error('GPS Watch Error:', err),
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
-    );
-
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [isLiveGPS, setDriverCoords]);
-
-  // Sync ambulance marker with driverCoords (for dispatcher view)
-  useEffect(() => {
-    if (!isLiveGPS && driverCoords && ambulanceRef.current) {
+    if (driverCoords && ambulanceRef.current) {
       ambulanceRef.current.setLatLng(driverCoords as L.LatLngExpression);
     }
-  }, [driverCoords, isLiveGPS]);
+  }, [driverCoords]);
 
   // Main animation loop
   useEffect(() => {
@@ -322,7 +303,16 @@ export default function MapComponent() {
         const lng = (currentActivePath[segIdx]?.[1] ?? 0) + ((currentActivePath[segIdx + 1]?.[1] ?? 0) - (currentActivePath[segIdx]?.[1] ?? 0)) * seg;
         if (!isNaN(lat) && !isNaN(lng)) {
           ambulanceRef.current.setLatLng([lat, lng] as L.LatLngExpression);
-          setAmbulanceSpeed(Math.round(baseSpeedKmH + (Math.random() - 0.5) * 5));
+          // Sync simulation coords back to global state so other roles can see the movement
+          if (!isLiveGPS && activeRole === 'driver') {
+            // Only update global state if moved significantly (> 0.00001 degrees ~1.1 meters)
+            // This prevents overwhelming the BroadcastChannel during high-FPS simulations
+            const lastLat = driverCoords?.[0] || 0;
+            const lastLng = driverCoords?.[1] || 0;
+            if (Math.abs(lat - lastLat) > 0.00001 || Math.abs(lng - lastLng) > 0.00001) {
+              setDriverCoords([lat, lng]);
+            }
+          }
         }
       }
 
@@ -525,8 +515,50 @@ export default function MapComponent() {
         {currentActivePath && <MapBoundsController routeParams={currentActivePath} />}
         <CenterOnAmbulance trigger={centerTrigger} markerRef={ambulanceRef} />
 
-        {/* Ambulance Marker */}
-        <Marker ref={ambulanceRef} position={ambulanceStation as L.LatLngExpression} icon={ambulanceIcon} zIndexOffset={100} />
+        {/* Auto-Zoom to SOS Scene */}
+        {sosStatus === 'dispatched' && emergencyCoords && <MapBoundsController routeParams={[ambulanceStation, emergencyCoords as number[]]} />}
+
+        {/* Multi-Ambulance Visualizer - Only show during Live Demo Roles */}
+        {activeRole !== 'simulation' && ambulances.map(amb => {
+          const isActive = amb.id === activeAmbulanceId;
+          const isLocalDriver = activeRole === 'driver' && isActive;
+          
+          return (
+            <Marker 
+              key={amb.id}
+              ref={isLocalDriver ? ambulanceRef : undefined}
+              position={[amb.lat, amb.lng] as L.LatLngExpression} 
+              icon={L.divIcon({
+                html: `<div style="width:40px;height:40px;position:relative;">
+                  <div style="position:absolute;inset:-4px;border-radius:50%;border:2px solid ${isActive ? '#EF4444' : '#2563EB'};${isActive ? 'animation:pulseGlow 1s infinite;' : ''} opacity:0.8;"></div>
+                  <div style="width:40px;height:40px;border-radius:50%;background:${isActive ? '#EF4444' : '#2563EB'};border:3px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">
+                    <svg viewBox="0 0 24 24" fill="white" style="width:20px;height:20px;"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5H15V3H9v2H6.5c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
+                  </div>
+                  ${isActive ? '<div style="position:absolute;top:-5px;right:-5px;background:#EF4444;color:white;font-size:7px;padding:1px 3px;border-radius:3px;font-weight:900;box-shadow:0 1px 3px rgba(0,0,0,0.2);">ACTIVE</div>' : ''}
+                </div>`,
+                className: '', iconSize: [40, 40], iconAnchor: [20, 20],
+              })}
+              zIndexOffset={isActive ? 1000 : 100}
+            >
+                <Popup>
+                    <div style={{ fontWeight: 800 }}>{amb.name}</div>
+                    <div style={{ fontSize: '11px', color: amb.status === 'available' ? 'green' : 'red' }}>
+                        ● {amb.status.toUpperCase()}
+                    </div>
+                </Popup>
+            </Marker>
+          );
+        })}
+
+        {/* Single Simulation Ambulance - Only show in Simulation Mode */}
+        {activeRole === 'simulation' && (
+           <Marker ref={ambulanceRef} position={ambulanceStation as L.LatLngExpression} icon={L.divIcon({
+            html: `<div style="width:40px;height:40px;border-radius:50%;background:var(--primary);border:3px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;">
+              <svg viewBox="0 0 24 24" fill="white" style="width:20px;height:20px;"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5H15V3H9v2H6.5c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
+            </div>`,
+            className: '', iconSize: [40, 40], iconAnchor: [20, 20],
+          })} zIndexOffset={100} />
+        )}
 
         {/* Emergency Scene */}
         {emergencyCoords && (
@@ -547,7 +579,7 @@ export default function MapComponent() {
         ))}
 
         {/* Weather Overlays */}
-        {weatherLayer && weatherData.map((w, idx) => (
+        {(weatherLayer || activeRole === 'simulation') && weatherData.map((w, idx) => (
           <React.Fragment key={`weather-${idx}`}>
             <Circle
               center={[w.lat, w.lng]}
@@ -564,7 +596,7 @@ export default function MapComponent() {
           </React.Fragment>
         ))}
 
-        {trafficLayer && trafficSegments.map((seg, idx) => {
+        {(trafficLayer || activeRole === 'simulation') && trafficSegments.map((seg, idx) => {
           const isHeavy = seg.level > 65;
           const isModerate = seg.level > 30 && seg.level <= 65;
           const color = isHeavy ? '#DC3545' : isModerate ? '#F59E0B' : '#10B981';

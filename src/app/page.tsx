@@ -1,3 +1,5 @@
+'use client';
+
 import Header from '@/components/layout/Header';
 import LeftPanel from '@/components/panels/LeftPanel';
 import NavPanel from '@/components/panels/NavPanel';
@@ -9,7 +11,16 @@ import EmergencyModal from '@/components/ui/EmergencyModal';
 import RouteSwitchModal from '@/components/ui/RouteSwitchModal';
 import MissionTelemetryOverlay from '@/components/ui/MissionTelemetryOverlay';
 
+import RoleSelector from '@/components/ui/RoleSelector';
+import PatientRolePanel from '@/components/panels/PatientRolePanel';
+import DriverRolePanel from '@/components/panels/DriverRolePanel';
+import HospitalRolePanel from '@/components/panels/HospitalRolePanel';
+import AdminRolePanel from '@/components/panels/AdminRolePanel';
+import { useApp } from '@/lib/AppContext';
+
 export default function Home() {
+  const { activeRole } = useApp();
+
   return (
     <main style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', position: 'relative' }}>
       <LoadingOverlay />
@@ -19,22 +30,47 @@ export default function Home() {
       <Header />
       <OfflineBanner />
       
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-          <DynamicMap />
-        </div>
-        
-        <MissionTelemetryOverlay />
-
-        <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, pointerEvents: 'none', display: 'flex', width: '100%', zIndex: 10 }}>
-          <div style={{ pointerEvents: 'auto', display: 'flex', height: '100%' }}>
-            <LeftPanel />
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex' }}>
+        {/* Left Sidebar Content - Switches based on activeRole */}
+        <div style={{ 
+          width: '400px', height: '100%', background: 'white', 
+          borderRight: '1px solid var(--border)', zIndex: 30, 
+          overflowY: 'auto', position: 'relative',
+          transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}>
+          <div key={activeRole} style={{ animation: 'slideIn 0.4s ease-out' }}>
+            {activeRole === 'simulation' ? <LeftPanel /> : (
+              <>
+                {activeRole === 'patient' && <PatientRolePanel />}
+                {activeRole === 'driver' && <DriverRolePanel />}
+                {activeRole === 'hospital' && <HospitalRolePanel />}
+                {activeRole === 'admin' && <AdminRolePanel />}
+              </>
+            )}
           </div>
         </div>
-        
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, pointerEvents: 'none', zIndex: 20 }}>
-          <div style={{ pointerEvents: 'auto' }}>
-            <NavPanel />
+
+        {/* Map View */}
+        <div style={{ flex: 1, position: 'relative' }}>
+          <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
+            <DynamicMap />
+          </div>
+          
+          <MissionTelemetryOverlay />
+
+          {/* Top Role Selector Overlay - Visible only in Live Demo Mode */}
+          {activeRole !== 'simulation' && (
+            <div style={{ position: 'absolute', top: '16px', left: 0, right: 0, zIndex: 1000, pointerEvents: 'none' }}>
+               <div style={{ pointerEvents: 'auto' }}>
+                <RoleSelector />
+               </div>
+            </div>
+          )}
+
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, pointerEvents: 'none', zIndex: 20 }}>
+            <div style={{ pointerEvents: 'auto' }}>
+              <NavPanel />
+            </div>
           </div>
         </div>
       </div>
