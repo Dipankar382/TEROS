@@ -9,6 +9,8 @@
 
 🚀 **[View Live Web App](https://teros-ai.netlify.app/)** | ⚙️ **[Backend Server](https://teros-1.onrender.com)**
 
+![TEROS Preview](./public/preview.png)
+
 ---
 
 ## 📸 Core Dashboards
