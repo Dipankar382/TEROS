@@ -239,6 +239,9 @@ export default function MapComponent() {
   // Main animation loop
   useEffect(() => {
     if (!navigating || paused || !currentActivePath || currentActivePath.length < 2) {
+      if (activeRole === 'driver' || activeRole === 'admin' || activeRole === 'simulation') {
+        setAmbulanceSpeed(0);
+      }
       if (animFrame.current) {
         cancelAnimationFrame(animFrame.current);
         animFrame.current = 0;
@@ -267,11 +270,15 @@ export default function MapComponent() {
       const speedKmMs = (baseSpeedKmH * simSpeedMultiplier) / 3600000;
       const progressDelta = (speedKmMs * deltaMs) / (totalPathDistKm || 0.1);
       progressRef.current += progressDelta;
+      
+      if (activeRole === 'driver' || activeRole === 'admin' || activeRole === 'simulation') {
+        setAmbulanceSpeed(Math.round(baseSpeedKmH * simSpeedMultiplier));
+      }
 
       if (progressRef.current >= 1) {
         progressRef.current = 1;
         setAmbulanceProgress(1);
-        setAmbulanceSpeed(0);
+        if (activeRole === 'driver' || activeRole === 'admin' || activeRole === 'simulation') setAmbulanceSpeed(0);
 
         if (missionStage === 'to_patient') {
           const arrivalCoords = currentActivePath[currentActivePath.length - 1] as [number, number];

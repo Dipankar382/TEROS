@@ -63,11 +63,9 @@ export default function DriverRolePanel() {
     }, 3000);
   };
 
-  // Assign this device to amb1 for demo and enable live GPS by default
   React.useEffect(() => {
     if (!activeAmbulanceId) setActiveAmbulanceId('amb1');
-    setIsLiveGPS(true);
-  }, [activeAmbulanceId, setActiveAmbulanceId, setIsLiveGPS]);
+  }, [activeAmbulanceId, setActiveAmbulanceId]);
 
   return (
     <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>

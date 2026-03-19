@@ -526,6 +526,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               setSosStatus(data.status);
               if (data.activeAmbulanceId) setActiveAmbulanceId(data.activeAmbulanceId);
               if (data.selectedHospital) setSelectedHospital(data.selectedHospital);
+              if (data.goldenHour != null) setGoldenHour(data.goldenHour);
+              if (data.criticalEventActive != null) setCriticalEventActive(data.criticalEventActive);
               break;
 
             case 'MAP_LAYERS_UPDATE':
@@ -565,7 +567,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Outgoing: Driver Telemetry with 500ms throttle
   const lastTelemetryTime = useRef(0);
   useEffect(() => {
-    if (activeRole === 'driver' && driverCoords) {
+    if ((activeRole === 'driver' || activeRole === 'admin' || activeRole === 'simulation') && driverCoords) {
       const now = Date.now();
       if (now - lastTelemetryTime.current > 500) {
         lastTelemetryTime.current = now;
@@ -584,7 +586,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Outgoing: SOS status changes
   useEffect(() => {
     if (sosStatus !== 'idle') {
-      emitSync('UPDATE_SOS_STATUS', { status: sosStatus, activeAmbulanceId, selectedHospital });
+      emitSync('UPDATE_SOS_STATUS', { status: sosStatus, activeAmbulanceId, selectedHospital, goldenHour, criticalEventActive });
     }
   }, [sosStatus, activeAmbulanceId, selectedHospital, emitSync]);
 
