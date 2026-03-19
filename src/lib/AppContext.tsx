@@ -129,7 +129,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [emergencyCoords, setEmergencyCoords] = useState<[number, number] | null>(null);
   const [isLiveGPS, setIsLiveGPS] = useState(false);
   const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null);
-  
+
   // Real-time Sync Reference (Native WebSocket to C++ backend)
   const syncSocket = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
@@ -144,7 +144,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     { id: 'amb3', name: 'Ambulance 03', lat: 30.1200, lng: 78.2500, status: 'available' },
   ]);
   const [activeAmbulanceId, setActiveAmbulanceId] = useState<string | null>(null);
-  
+
   // New Mission Telemetry State
   const [score, setScore] = useState(92);
   const [elevationData, setElevationData] = useState<number[]>([350, 365, 380, 395, 410, 420, 408, 395, 375, 360, 355, 368, 385, 400, 412, 403, 385, 370, 358, 350]);
@@ -210,7 +210,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         best = h.id;
       }
     });
-    if (!silent) showNotification('Optimal Routing', `Nearest available trauma center: ${hospitalData.find(h=>h.id===best)?.name}`, 'info');
+    if (!silent) showNotification('Optimal Routing', `Nearest available trauma center: ${hospitalData.find(h => h.id === best)?.name}`, 'info');
     return best;
   }, [hospitalData, calculateDistance, showNotification]);
 
@@ -241,7 +241,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (sosStatus === 'requested' && emergencyCoords && activeAmbulanceId === null) {
       let nearestId: string | null = null;
       let minDistance = Infinity;
-      
+
       ambulances.forEach(amb => {
         if (amb.status === 'available') {
           const dist = calculateDistance(emergencyCoords, [amb.lat, amb.lng]);
@@ -266,7 +266,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Continuous GPS Tracking (Driver & Patient)
   useEffect(() => {
     if (typeof window === 'undefined' || !navigator.geolocation) return;
-    
+
     let watchId: number | null = null;
 
     if (activeRole === 'driver' && isLiveGPS) {
@@ -274,7 +274,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         (pos) => {
           const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
           setDriverCoords(coords);
-          setAmbulances(prev => prev.map(a => 
+          setAmbulances(prev => prev.map(a =>
             a.id === (activeAmbulanceId || 'amb1') ? { ...a, lat: coords[0], lng: coords[1] } : a
           ));
         },
@@ -387,8 +387,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               break;
 
             case 'TELEMETRY_UPDATE':
-              setAmbulances(prev => prev.map(a => a.id === data.driver_id ? { ...a, lat: data.latitude, lng: data.longitude } : a));
-              setDriverCoords([data.latitude, data.longitude]);
+              if (data.latitude != null && data.longitude != null) {
+                setAmbulances(prev => prev.map(a => a.id === data.driver_id ? { ...a, lat: data.latitude, lng: data.longitude } : a));
+                setDriverCoords([data.latitude, data.longitude]);
+              }
               break;
 
             case 'TRIP_STATE_UPDATE': {
@@ -451,7 +453,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       syncSocket.current?.close();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps = stable connection, never reconnects on state changes
 
   // Outgoing: Driver Telemetry with 500ms throttle
