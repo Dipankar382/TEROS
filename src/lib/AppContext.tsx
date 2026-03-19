@@ -281,10 +281,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         (err) => {
           if (err.code === 1) {
             showNotification('GPS Access Required', 'Please enable location permissions for live tracking.', 'warning');
-          } else if (err.code !== 3) {
-            showNotification('GPS Status', 'Live location unavailable. Switching to simulation.', 'warning');
+            setIsLiveGPS(false);
+          } else {
+            console.warn('GPS Error inside watchPosition, using fallback location:', err);
+            // Fallback to mock coords if driver has no location
+            setDriverCoords(prev => {
+              if (!prev) {
+                showNotification('GPS Fallback', 'Live location unavailable. Using fallback location.', 'info');
+                const fallback: [number, number] = [30.0687, 78.2950];
+                setAmbulances(ambs => ambs.map(a => a.id === (activeAmbulanceId || 'amb1') ? { ...a, lat: fallback[0], lng: fallback[1] } : a));
+                return fallback;
+              }
+              return prev;
+            });
           }
-          setIsLiveGPS(false);
         },
         { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
       );
@@ -298,8 +308,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // Silence GPS errors for patient to avoid console noise
           if (err.code === 1) {
             showNotification('GPS Access', 'Please enable location to track your position.', 'warning');
+          } else {
+             console.warn('Patient GPS Error, falling back.', err);
+             setEmergencyCoords(prev => prev || [30.0869, 78.2676]);
           }
-          // Fallback to current emergencyCoords if they exist, or don't update
         },
         { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
       );
