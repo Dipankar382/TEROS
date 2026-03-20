@@ -526,7 +526,7 @@ export default function MapComponent() {
         {sosStatus === 'dispatched' && emergencyCoords && <MapBoundsController routeParams={[ambulanceStation, emergencyCoords as number[]]} />}
 
         {/* Multi-Ambulance Visualizer - Only show during Live Demo Roles */}
-        {activeRole !== 'simulation' && ambulances.map(amb => {
+        {activeRole !== 'simulation' && Array.isArray(ambulances) && ambulances.map(amb => {
           const isActive = amb.id === activeAmbulanceId;
           const isLocalDriver = activeRole === 'driver' && isActive;
           
@@ -627,11 +627,14 @@ export default function MapComponent() {
 }
 
 const ctrlBtnStyle = (active: boolean): React.CSSProperties => ({
-  width: '40px', height: '40px', borderRadius: '8px',
-  background: active ? 'var(--primary)' : 'var(--surface-solid)',
-  border: `1px solid ${active ? 'var(--primary)' : 'var(--border-strong)'}`,
-  boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+  width: '38px', height: '38px', borderRadius: '10px',
+  background: active ? 'var(--primary)' : 'rgba(255, 255, 255, 0.7)',
+  border: `1px solid ${active ? 'var(--primary)' : 'rgba(255, 255, 255, 0.3)'}`,
+  backdropFilter: 'blur(8px)',
+  WebkitBackdropFilter: 'blur(8px)',
+  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   cursor: 'pointer', fontSize: '14px',
   color: active ? '#fff' : 'var(--text)',
+  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
 });

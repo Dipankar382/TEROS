@@ -22,7 +22,7 @@ export default function AdminRolePanel() {
     setNavigating, setMissionStage, startCriticalEvent, findOptimalHospital
   } = useApp();
 
-  const activeAmbulance = ambulances.find(a => a.id === activeAmbulanceId);
+  const activeAmbulance = Array.isArray(ambulances) ? ambulances.find(a => a.id === activeAmbulanceId) : null;
 
   // Terrain risk calculations
   const liveAltitude = Math.round(elevationData[currentSegIdx] || 0);
@@ -46,7 +46,7 @@ export default function AdminRolePanel() {
     setSosStatus('idle');
     setActiveAmbulanceId(null);
     setEmergencyCoords(null);
-    setAmbulances(prev => prev.map(a => ({ ...a, status: 'available' as const })));
+    setAmbulances(prev => Array.isArray(prev) ? prev.map(a => ({ ...a, status: 'available' as const })) : []);
     setNavigating(false);
     setMissionStage('idle');
     showNotification('System Reset', 'Global state has been cleared by Admin.', 'warning');
@@ -138,21 +138,21 @@ export default function AdminRolePanel() {
               {sosStatus === 'requested' && (
                 <button 
                   onClick={handleRespond}
-                  disabled={ambulances.length === 0}
+                  disabled={!Array.isArray(ambulances) || ambulances.length === 0}
                   style={{
                     width: '100%', marginTop: '16px', padding: '14px', borderRadius: '12px',
-                    background: ambulances.length > 0 ? 'white' : 'var(--surface-alt)', 
-                    color: ambulances.length > 0 ? 'var(--critical)' : 'var(--text-muted)',
+                    background: (Array.isArray(ambulances) && ambulances.length > 0) ? 'white' : 'var(--surface-alt)', 
+                    color: (Array.isArray(ambulances) && ambulances.length > 0) ? 'var(--critical)' : 'var(--text-muted)',
                     border: 'none',
-                    fontSize: '13px', fontWeight: 900, cursor: ambulances.length > 0 ? 'pointer' : 'not-allowed',
+                    fontSize: '13px', fontWeight: 900, cursor: (Array.isArray(ambulances) && ambulances.length > 0) ? 'pointer' : 'not-allowed',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                    boxShadow: ambulances.length > 0 ? '0 4px 12px rgba(220, 53, 69, 0.4)' : 'none',
-                    animation: ambulances.length > 0 ? 'pulseGlow 2s infinite' : 'none',
-                    opacity: ambulances.length > 0 ? 1 : 0.6
+                    boxShadow: (Array.isArray(ambulances) && ambulances.length > 0) ? '0 4px 12px rgba(220, 53, 69, 0.4)' : 'none',
+                    animation: (Array.isArray(ambulances) && ambulances.length > 0) ? 'pulseGlow 2s infinite' : 'none',
+                    opacity: (Array.isArray(ambulances) && ambulances.length > 0) ? 1 : 0.6
                   }}
                 >
                   <Zap size={16} fill="currentColor" /> 
-                  {ambulances.length > 0 ? 'RESPOND TO EMERGENCY' : 'WAIT FOR LIVE DRIVER...'}
+                  {(Array.isArray(ambulances) && ambulances.length > 0) ? 'RESPOND TO EMERGENCY' : 'WAIT FOR LIVE DRIVER...'}
                 </button>
               )}
           </section>
@@ -218,7 +218,7 @@ export default function AdminRolePanel() {
               <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--primary)' }}>{liveAltitude}m</div>
             </div>
             <div style={{ height: '40px', display: 'flex', alignItems: 'flex-end', gap: '2px' }}>
-              {elevationData.map((e: number, i: number) => {
+              {Array.isArray(elevationData) && elevationData.map((e: number, i: number) => {
                 const pct = ((e - minElev) / elevRange) * 100;
                 const height = 6 + pct * 0.34;
                 const isCurrent = i === currentSegIdx;
@@ -269,7 +269,7 @@ export default function AdminRolePanel() {
       <section style={{ flex: 1 }}>
         <h3 style={{ fontSize: '12px', fontWeight: 800, marginBottom: '12px', color: 'var(--text)' }}>AMBULANCE FLEET</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {ambulances.map(a => (
+          {Array.isArray(ambulances) && ambulances.map(a => (
             <div key={a.id} className="glass-card" style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: a.status === 'available' ? 'var(--success)' : 'var(--critical)', boxShadow: a.status === 'available' ? '0 0 6px var(--success)' : '0 0 6px var(--critical)' }}></div>

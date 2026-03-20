@@ -296,7 +296,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         if (nearestId) {
           const targetId = nearestId;
-          setAmbulances(prev => prev.map(a => a.id === targetId ? { ...a, status: 'busy' } : a));
+          setAmbulances(prev => Array.isArray(prev) ? prev.map(a => a.id === targetId ? { ...a, status: 'busy' } : a) : []);
           setActiveAmbulanceId(targetId);
           setSosStatus('dispatched');
           showNotification('Ambulance Allocated', `Unit ${targetId} has been dispatched automatically.`, 'success');
@@ -317,9 +317,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         (pos) => {
           const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
           setDriverCoords(coords);
-          setAmbulances(prev => prev.map(a =>
+          setAmbulances(prev => Array.isArray(prev) ? prev.map(a =>
             a.id === (activeAmbulanceId || 'amb1') ? { ...a, lat: coords[0], lng: coords[1] } : a
-          ));
+          ) : []);
         },
         (err) => {
           if (err.code === 1) {
@@ -426,9 +426,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               } else if (data.role === 'DRIVER') {
                 showNotification('Driver Connected', 'An ambulance driver has joined the network.', 'info');
                 setAmbulances(prev => {
-                  if (prev.find(a => a.id === data.id)) return prev;
+                  const safePrev = Array.isArray(prev) ? prev : [];
+                  if (safePrev.find(a => a.id === data.id)) return safePrev;
                   // Don't set hardcoded lat/lng here, wait for TELEMETRY_UPDATE
-                  return [...prev, { id: data.id, name: `Live Unit ${data.id.slice(-4)}`, lat: 0, lng: 0, status: 'available' }];
+                  return [...safePrev, { id: data.id, name: `Live Unit ${data.id.slice(-4)}`, lat: 0, lng: 0, status: 'available' }];
                 });
               }
               break;
@@ -463,14 +464,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
             case 'FLEET_UPDATE':
               isRemoteUpdate.current = true;
-              setAmbulances(data.ambulances);
+              if (Array.isArray(data.ambulances)) {
+                setAmbulances(data.ambulances);
+              } else {
+                console.warn('[WS] FLEET_UPDATE received non-array ambulances:', data.ambulances);
+              }
               setTimeout(() => { isRemoteUpdate.current = false; }, 50);
               break;
 
             case 'TELEMETRY_UPDATE':
               if (data.latitude != null && data.longitude != null) {
                 isRemoteUpdate.current = true;
-                setAmbulances(prev => prev.map(a => a.id === data.driver_id ? { ...a, lat: data.latitude, lng: data.longitude } : a));
+                setAmbulances(prev => Array.isArray(prev) 
+                  ? prev.map(a => a.id === data.driver_id ? { ...a, lat: data.latitude, lng: data.longitude } : a)
+                  : []
+                );
                 
                 // If I am NOT the source (driver/admin/sim), sync my local driver view
                 if (activeRoleRef.current !== 'driver' && activeRoleRef.current !== 'admin' && activeRoleRef.current !== 'simulation') {
@@ -495,7 +503,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setSosStatus('idle');
                 setEmergencyCoords(null);
                 setActiveAmbulanceId(null);
-                setAmbulances(prev => prev.map(a => ({ ...a, status: 'available' })));
+                setAmbulances(prev => Array.isArray(prev) ? prev.map(a => ({ ...a, status: 'available' })) : []);
               }
               setTimeout(() => { isRemoteUpdate.current = false; }, 50);
               break;

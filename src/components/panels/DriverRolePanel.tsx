@@ -20,7 +20,7 @@ export default function DriverRolePanel() {
     t, language, emitSync
   } = useApp();
 
-  const activeAmbulance = ambulances.find(a => a.id === activeAmbulanceId) || ambulances[0];
+  const activeAmbulance = (Array.isArray(ambulances) ? ambulances.find(a => a.id === activeAmbulanceId) : null) || (Array.isArray(ambulances) ? ambulances[0] : null);
   const targetHospital = hospitals.find(h => h.id === selectedHospital);
 
   const distToPatient = (driverCoords && emergencyCoords) ? calculateDistance(driverCoords, emergencyCoords) : Infinity;
@@ -114,6 +114,7 @@ export default function DriverRolePanel() {
                 if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
                   window.navigator.vibrate([200, 100, 200]);
                 }
+                setIsLiveGPS(true);
                 emitSync('ACCEPT_SOS', { trip_id: activeAmbulanceId });
               }}
               style={{
@@ -205,7 +206,7 @@ export default function DriverRolePanel() {
               </div>
             </div>
             <div style={{ height: '50px', display: 'flex', alignItems: 'flex-end', gap: '2px' }}>
-              {elevationData.map((e: number, i: number) => {
+              {Array.isArray(elevationData) && elevationData.map((e: number, i: number) => {
                 const pct = ((e - minElev) / elevRange) * 100;
                 const height = 8 + pct * 0.42;
                 const isCurrent = i === currentSegIdx;
