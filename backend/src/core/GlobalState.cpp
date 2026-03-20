@@ -13,35 +13,37 @@ void GlobalState::addUser(const std::string& id, UserRole role, websocketpp::con
     user.hdl = hdl;
     user.is_online = true;
     users[id] = user;
-    hdl_to_userid[hdl.lock().get()] = id;
+    hdl_to_userid[hdl] = id;
 }
 
 void GlobalState::removeUser(const std::string& id) {
     std::lock_guard<std::mutex> lock(state_mutex);
-    if (users.find(id) != users.end()) {
-        auto hdl_ptr = users[id].hdl.lock().get();
-        hdl_to_userid.erase(hdl_ptr);
-        users.erase(id);
+    auto it = users.find(id);
+    if (it != users.end()) {
+        hdl_to_userid.erase(it->second.hdl);
+        users.erase(it);
     }
 }
 
-User* GlobalState::getUser(const std::string& id) {
+std::optional<User> GlobalState::getUser(const std::string& id) {
     std::lock_guard<std::mutex> lock(state_mutex);
-    if (users.find(id) != users.end()) {
-        return &users[id];
+    auto it = users.find(id);
+    if (it != users.end()) {
+        return it->second;
     }
-    return nullptr;
+    return std::nullopt;
 }
 
-User* GlobalState::getUserByHdl(websocketpp::connection_hdl hdl) {
+std::optional<User> GlobalState::getUserByHdl(websocketpp::connection_hdl hdl) {
     std::lock_guard<std::mutex> lock(state_mutex);
-    auto it = hdl_to_userid.find(hdl.lock().get());
-    if (it != hdl_to_userid.end()) {
-        if (users.find(it->second) != users.end()) {
-            return &users[it->second];
+    auto it_id = hdl_to_userid.find(hdl);
+    if (it_id != hdl_to_userid.end()) {
+        auto it_user = users.find(it_id->second);
+        if (it_user != users.end()) {
+            return it_user->second;
         }
     }
-    return nullptr;
+    return std::nullopt;
 }
 
 std::unordered_map<std::string, User> GlobalState::getAllUsers() {
@@ -61,19 +63,26 @@ void GlobalState::addTrip(const Trip& trip) {
     trips[trip.trip_id] = trip;
 }
 
-Trip* GlobalState::getTrip(const std::string& trip_id) {
+std::optional<Trip> GlobalState::getTrip(const std::string& trip_id) {
     std::lock_guard<std::mutex> lock(state_mutex);
-    if (trips.find(trip_id) != trips.end()) {
-        return &trips[trip_id];
+    auto it = trips.find(trip_id);
+    if (it != trips.end()) {
+        return it->second;
     }
-    return nullptr;
+    return std::nullopt;
 }
 
 void GlobalState::updateTripState(const std::string& trip_id, TripState new_state) {
     std::lock_guard<std::mutex> lock(state_mutex);
-    if (trips.find(trip_id) != trips.end()) {
-        trips[trip_id].state = new_state;
+    auto it = trips.find(trip_id);
+    if (it != trips.end()) {
+        it->second.state = new_state;
     }
+}
+
+void GlobalState::updateTrip(const Trip& trip) {
+    std::lock_guard<std::mutex> lock(state_mutex);
+    trips[trip.trip_id] = trip;
 }
 
 std::unordered_map<std::string, Trip> GlobalState::getActiveTrips() {

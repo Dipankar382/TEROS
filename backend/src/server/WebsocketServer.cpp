@@ -41,7 +41,7 @@ void WebsocketServer::on_open(websocketpp::connection_hdl hdl) {
 
 void WebsocketServer::on_close(websocketpp::connection_hdl hdl) {
     log_with_time("[WebsocketServer] Connection closed");
-    User* user = GlobalState::getInstance().getUserByHdl(hdl);
+    auto user = GlobalState::getInstance().getUserByHdl(hdl);
     if (user) {
         GlobalState::getInstance().removeUser(user->id);
     }
@@ -126,7 +126,7 @@ void WebsocketServer::handle_auth(websocketpp::connection_hdl hdl, const json& p
 }
 
 void WebsocketServer::handle_sos(websocketpp::connection_hdl hdl, const json& payload) {
-    User* patient = GlobalState::getInstance().getUserByHdl(hdl);
+    auto patient = GlobalState::getInstance().getUserByHdl(hdl);
     if (!patient) return;
 
     // Update patient location from the SOS payload
@@ -167,7 +167,7 @@ void WebsocketServer::handle_sos(websocketpp::connection_hdl hdl, const json& pa
 }
 
 void WebsocketServer::handle_accept_sos(websocketpp::connection_hdl hdl, const json& payload) {
-    User* driver = GlobalState::getInstance().getUserByHdl(hdl);
+    auto driver = GlobalState::getInstance().getUserByHdl(hdl);
     if (!driver || driver->role != UserRole::DRIVER) return;
 
     std::string trip_id = payload.value("trip_id", "");
@@ -183,7 +183,7 @@ void WebsocketServer::handle_accept_sos(websocketpp::connection_hdl hdl, const j
 }
 
 void WebsocketServer::handle_telemetry(websocketpp::connection_hdl hdl, const json& payload) {
-    User* driver = GlobalState::getInstance().getUserByHdl(hdl);
+    auto driver = GlobalState::getInstance().getUserByHdl(hdl);
     if (!driver || driver->role != UserRole::DRIVER) return;
 
     Location loc;
@@ -207,13 +207,13 @@ void WebsocketServer::handle_telemetry(websocketpp::connection_hdl hdl, const js
 }
 
 void WebsocketServer::handle_state_transition(websocketpp::connection_hdl hdl, const json& payload) {
-    User* user = GlobalState::getInstance().getUserByHdl(hdl);
+    auto user = GlobalState::getInstance().getUserByHdl(hdl);
     if (!user) return;
 
     std::string trip_id = payload.value("trip_id", "");
     std::string state_str = payload.value("new_state", "");
 
-    Trip* trip = GlobalState::getInstance().getTrip(trip_id);
+    auto trip = GlobalState::getInstance().getTrip(trip_id);
     if (!trip) return;
 
     TripState new_state = TripState::IDLE;
@@ -291,11 +291,11 @@ void WebsocketServer::broadcast(const json& msg) {
 void WebsocketServer::broadcast_except(const json& msg, websocketpp::connection_hdl sender) {
     auto users = GlobalState::getInstance().getAllUsers();
     std::string payload = msg.dump();
-    auto sender_ptr = sender.lock().get();
     for (const auto& [id, user] : users) {
         try {
-            auto user_ptr = user.hdl.lock().get();
-            if (user_ptr != sender_ptr) {
+            // Robust check for same connection handle
+            bool is_sender = !user.hdl.owner_before(sender) && !sender.owner_before(user.hdl);
+            if (!is_sender) {
                 m_server.send(user.hdl, payload, websocketpp::frame::opcode::text);
             }
         } catch (...) {
@@ -326,8 +326,8 @@ void WebsocketServer::broadcast_fleet() {
     broadcast(fleetMsg);
 }
 
-void WebsocketServer::send_to_user(const std::string& user_id, const json& msg) {
-    User* user = GlobalState::getInstance().getUser(user_id);
+void WebsocketServer::send_to_user(const std::string& user_id, const nlohmann::json& msg) {
+    auto user = GlobalState::getInstance().getUser(user_id);
     if (user) {
         m_server.send(user->hdl, msg.dump(), websocketpp::frame::opcode::text);
     }
