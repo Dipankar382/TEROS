@@ -9,6 +9,7 @@ export default function DriverRolePanel() {
   const {
     sosStatus, setSosStatus,
     activeAmbulanceId, setActiveAmbulanceId,
+    activeTripId, setActiveTripId,
     driverCoords, setDriverCoords,
     emergencyCoords, selectedHospital,
     calculateDistance, showNotification,
@@ -48,13 +49,13 @@ export default function DriverRolePanel() {
   const isCriticalTime = goldenHour < 600;
 
   const handlePickUp = () => {
-    emitSync('STATE_TRANSITION', { trip_id: activeAmbulanceId, new_state: 'ARRIVED_AT_PATIENT' });
+    emitSync('STATE_TRANSITION', { trip_id: activeTripId, new_state: 'ARRIVED_AT_PATIENT' });
     setSosStatus('picked_up');
     showNotification('Patient Picked Up', 'Heading to optimal hospital destination.', 'success');
   };
 
   const handleHandover = () => {
-    emitSync('STATE_TRANSITION', { trip_id: activeAmbulanceId, new_state: 'COMPLETED' });
+    emitSync('STATE_TRANSITION', { trip_id: activeTripId, new_state: 'COMPLETED' });
     setSosStatus('delivered');
     showNotification('Handover Complete', 'Mission successfully ended.', 'success');
     setTimeout(() => {
@@ -119,7 +120,7 @@ export default function DriverRolePanel() {
                   window.navigator.vibrate([200, 100, 200]);
                 }
                 setIsLiveGPS(true);
-                emitSync('ACCEPT_SOS', { trip_id: activeAmbulanceId });
+                emitSync('ACCEPT_SOS', { trip_id: activeTripId });
               }}
               style={{
                 width: '100%', padding: '20px', background: '#10B981', color: 'white',

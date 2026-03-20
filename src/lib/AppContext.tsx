@@ -26,6 +26,8 @@ type AppState = {
   setActiveRole: (r: 'simulation' | 'patient' | 'driver' | 'hospital' | 'admin') => void;
   sosStatus: 'idle' | 'requested' | 'dispatched' | 'picked_up' | 'delivered';
   setSosStatus: (s: 'idle' | 'requested' | 'dispatched' | 'picked_up' | 'delivered') => void;
+  activeTripId: string | null;
+  setActiveTripId: (id: string | null) => void;
   ambulances: Array<{ id: string; name: string; lat: number; lng: number; status: 'available' | 'busy' }>;
   setAmbulances: React.Dispatch<React.SetStateAction<Array<{ id: string; name: string; lat: number; lng: number; status: 'available' | 'busy' }>>>;
   activeAmbulanceId: string | null;
@@ -142,6 +144,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const activeRoleRef = useRef(activeRole);
   const [sosStatus, setSosStatus] = useState<'idle' | 'requested' | 'dispatched' | 'picked_up' | 'delivered'>('idle');
   const [activeAmbulanceId, setActiveAmbulanceId] = useState<string | null>(null);
+  const [activeTripId, setActiveTripId] = useState<string | null>(null);
   const [assignedDriverId, setAssignedDriverId] = useState<string | null>(null);
   const [ambulances, setAmbulances] = useState<any[]>([]);
   const isRemoteUpdate = useRef(false);
@@ -392,7 +395,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (typeof window === 'undefined') return;
 
     function connect() {
-      const socketUrl = process.env.NEXT_PUBLIC_WS_URL || 'wss://teros-1.onrender.com';
+      const socketUrl = process.env.NEXT_PUBLIC_WS_SERVER_URL || 'ws://localhost:9001';
       const ws = new WebSocket(socketUrl);
       syncSocket.current = ws;
 
@@ -418,6 +421,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           switch (type) {
             case 'AUTH_SUCCESS':
               console.log(`[WS] Authenticated as ${data.role}. ${data.connectedClients} clients online.`);
+              if (Array.isArray(data.activeDrivers)) {
+                setAmbulances(data.activeDrivers);
+              }
               break;
 
             case 'USER_JOINED':
@@ -441,7 +447,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setEmergencyCoords([data.latitude, data.longitude]);
                 setSosStatus('requested');
                 setPatientCondition(data.condition || 'critical');
-                setActiveAmbulanceId(data.trip_id);
+                setActiveTripId(data.trip_id);
+                // If I am a patient, I also want to track this trip's assigned resource
+                if (activeRoleRef.current === 'patient') {
+                  setActiveAmbulanceId(data.trip_id);
+                }
                 showNotification('🚨 SOS ALERT', `Incoming ${data.condition || 'Critical'} Emergency Request!`, 'danger');
                 if (activeRoleRef.current === 'driver') {
                   if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
@@ -455,6 +465,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             case 'SOS_ASSIGNED':
               isRemoteUpdate.current = true;
               setSosStatus('dispatched');
+              setActiveTripId(data.trip_id);
               setAssignedDriverId(data.driver_id);
               if (activeRoleRef.current === 'patient') {
                 setActiveAmbulanceId(data.driver_id);
@@ -503,7 +514,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setMissionStage('idle');
                 setSosStatus('idle');
                 setEmergencyCoords(null);
-                setActiveAmbulanceId(null);
+                setActiveTripId(null);
+                if (activeRoleRef.current === 'patient') {
+                  setActiveAmbulanceId(null);
+                }
                 setAmbulances(prev => Array.isArray(prev) ? prev.map(a => ({ ...a, status: 'available' })) : []);
               }
               setTimeout(() => { isRemoteUpdate.current = false; }, 50);
@@ -645,6 +659,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       driverCoords, setDriverCoords,
       activeRole, setActiveRole,
       sosStatus, setSosStatus,
+      activeTripId, setActiveTripId,
       ambulances, setAmbulances,
       activeAmbulanceId, setActiveAmbulanceId,
       score,
