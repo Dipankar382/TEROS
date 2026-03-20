@@ -24,6 +24,8 @@ private:
     void handle_sos_status_update(websocketpp::connection_hdl hdl, const nlohmann::json& payload);
     void handle_map_layers_update(websocketpp::connection_hdl hdl, const nlohmann::json& payload);
     void handle_hospital_data_update(websocketpp::connection_hdl hdl, const nlohmann::json& payload);
+    void handle_vitals_update(websocketpp::connection_hdl hdl, const nlohmann::json& payload);
+    void handle_mission_stats_update(websocketpp::connection_hdl hdl, const nlohmann::json& payload);
 
     void broadcast(const nlohmann::json& msg);
     void broadcast_except(const nlohmann::json& msg, websocketpp::connection_hdl sender);

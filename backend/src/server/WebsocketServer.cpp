@@ -71,6 +71,10 @@ void WebsocketServer::on_message(websocketpp::connection_hdl hdl, server::messag
             handle_map_layers_update(hdl, payload);
         } else if (type == "UPDATE_HOSPITAL_DATA") {
             handle_hospital_data_update(hdl, payload);
+        } else if (type == "VITALS_UPDATE") {
+            handle_vitals_update(hdl, payload);
+        } else if (type == "MISSION_STATS_UPDATE") {
+            handle_mission_stats_update(hdl, payload);
         } else if (type == "HEARTBEAT") {
             // Echo back to keep connection alive
             json pong = {{"type", "HEARTBEAT_PONG"}};
@@ -295,7 +299,26 @@ void WebsocketServer::handle_hospital_data_update(websocketpp::connection_hdl hd
     // Broadcast hospital data updates except to sender
     json update = {
         {"type", "HOSPITAL_DATA_UPDATE"},
-        {"hospitalData", payload}
+        {"hospitalData", payload.value("hospitalData", json::object())}
+    };
+    broadcast_except(update, hdl);
+}
+
+void WebsocketServer::handle_vitals_update(websocketpp::connection_hdl hdl, const json& payload) {
+    json update = {
+        {"type", "VITALS_UPDATE"},
+        {"heartRate", payload.value("heartRate", 70)},
+        {"spo2", payload.value("spo2", 98)}
+    };
+    broadcast_except(update, hdl);
+}
+
+void WebsocketServer::handle_mission_stats_update(websocketpp::connection_hdl hdl, const json& payload) {
+    json update = {
+        {"type", "MISSION_STATS_UPDATE"},
+        {"goldenHour", payload.value("goldenHour", 3600)},
+        {"criticalEventActive", payload.value("criticalEventActive", false)},
+        {"ambulanceSpeed", payload.value("ambulanceSpeed", 0)}
     };
     broadcast_except(update, hdl);
 }

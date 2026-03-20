@@ -498,7 +498,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               setAssignedDriverId(data.driver_id);
               if (activeRoleRef.current === 'patient') {
                 setActiveAmbulanceId(data.driver_id);
-                showNotification('SOS Accepted', 'A live ambulance is en route!', 'success');
+          showNotification('SOS Accepted', 'A live ambulance is en route!', 'success');
               }
               setTimeout(() => { isRemoteUpdate.current = false; }, 50);
               break;
@@ -516,10 +516,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             case 'TELEMETRY_UPDATE':
               if (data.latitude != null && data.longitude != null) {
                 isRemoteUpdate.current = true;
-                setAmbulances(prev => Array.isArray(prev) 
-                  ? prev.map(a => a.id === data.driver_id ? { ...a, lat: data.latitude, lng: data.longitude } : a)
-                  : []
-                );
+                setAmbulances(prev => {
+                  const safePrev = Array.isArray(prev) ? prev : [];
+                  const exists = safePrev.find(a => a.id === data.driver_id);
+                  if (exists) {
+                    return safePrev.map(a => a.id === data.driver_id ? { ...a, lat: data.latitude, lng: data.longitude } : a);
+                  }
+                  // Add new live driver if not already in list
+                  return [...safePrev, { 
+                    id: data.driver_id, 
+                    name: `Live Unit ${data.driver_id.slice(-4)}`, 
+                    lat: data.latitude, 
+                    lng: data.longitude, 
+                    status: 'busy' 
+                  }];
+                });
                 
                 // If I am the patient and this is my allocated driver, update local view
                 if (data.driver_id === activeAmbulanceId || data.driver_id === assignedDriverId || data.driver_id === userIdRef.current) {
@@ -576,6 +587,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             case 'HOSPITAL_DATA_UPDATE':
               isRemoteUpdate.current = true;
               setHospitalData(data.hospitalData);
+              setTimeout(() => { isRemoteUpdate.current = false; }, 50);
+              break;
+
+            case 'VITALS_UPDATE':
+              if (activeRoleRef.current !== 'patient') {
+                isRemoteUpdate.current = true;
+                setHeartRate(data.heartRate);
+                setSpo2(data.spo2);
+                setTimeout(() => { isRemoteUpdate.current = false; }, 50);
+              }
+              break;
+
+            case 'MISSION_STATS_UPDATE':
+              isRemoteUpdate.current = true;
+              setGoldenHour(data.goldenHour);
+              setCriticalEventActive(data.criticalEventActive);
+              setAmbulanceSpeed(data.ambulanceSpeed);
               setTimeout(() => { isRemoteUpdate.current = false; }, 50);
               break;
           }
@@ -646,6 +674,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       emitSync('UPDATE_HOSPITAL_DATA', hospitalData);
     }
   }, [hospitalData, activeRole, emitSync]);
+
+  // Outgoing Vitals Sync (Patient to Admin/Hospital)
+  useEffect(() => {
+    if (activeRole === 'patient' && !isRemoteUpdate.current) {
+      emitSync('VITALS_UPDATE', { heartRate, spo2 });
+    }
+  }, [heartRate, spo2, activeRole, emitSync]);
+
+  // Outgoing Mission Stats Sync (Admin/Driver to others)
+  useEffect(() => {
+    if ((activeRole === 'admin' || activeRole === 'driver') && !isRemoteUpdate.current) {
+      emitSync('MISSION_STATS_UPDATE', { goldenHour, criticalEventActive, ambulanceSpeed });
+    }
+  }, [goldenHour, criticalEventActive, ambulanceSpeed, activeRole, emitSync]);
 
   return (
     <AppContext.Provider value={{
