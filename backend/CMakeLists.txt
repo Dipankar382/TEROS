@@ -10,13 +10,15 @@ include(FetchContent)
 # Set up nlohmann_json
 FetchContent_Declare(json
   GIT_REPOSITORY https://github.com/nlohmann/json.git
-  GIT_TAG v3.11.2)
+  GIT_TAG v3.11.2
+  GIT_SHALLOW ON)
 FetchContent_MakeAvailable(json)
 
 # Set up ASIO (standalone)
 FetchContent_Declare(asio
   GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
-  GIT_TAG asio-1-28-0)
+  GIT_TAG asio-1-28-0
+  GIT_SHALLOW ON)
 FetchContent_MakeAvailable(asio)
 add_library(asio INTERFACE)
 target_include_directories(asio INTERFACE ${asio_SOURCE_DIR}/asio/include)
@@ -25,7 +27,8 @@ target_compile_definitions(asio INTERFACE ASIO_STANDALONE)
 # Set up websocketpp
 FetchContent_Declare(websocketpp
   GIT_REPOSITORY https://github.com/zaphoyd/websocketpp.git
-  GIT_TAG 0.8.2)
+  GIT_TAG 0.8.2
+  GIT_SHALLOW ON)
 FetchContent_MakeAvailable(websocketpp)
 
 add_executable(live_server

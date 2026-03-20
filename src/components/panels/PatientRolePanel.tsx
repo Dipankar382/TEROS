@@ -12,8 +12,9 @@ export default function PatientRolePanel() {
     showNotification, startCriticalEvent,
     goldenHour, ambulanceSpeed,
     liveTemp, liveWind, liveVisibility, liveRain,
-    heartRate, spo2,
     patientCondition, setPatientCondition,
+    heartRate, setHeartRate,
+    spo2, setSpo2,
     t, language, emitSync
   } = useApp();
 
@@ -254,6 +255,20 @@ export default function PatientRolePanel() {
                 </div>
               </div>
             </div>
+            <button
+              onClick={() => {
+                setHeartRate(120);
+                setSpo2(85);
+                showNotification('Simulation active', 'Vitals are dropping. Syncing with Admin...', 'warning');
+              }}
+                style={{
+                  width: '100%', marginTop: '12px', padding: '10px', borderRadius: '10px',
+                  background: 'var(--surface)', color: 'var(--critical)', border: '1px dashed var(--critical)',
+                  fontSize: '10px', fontWeight: 800, cursor: 'pointer'
+                }}
+              >
+                SIMULATE VITALS DROP
+              </button>
           </div>
 
           {/* Weather Conditions */}

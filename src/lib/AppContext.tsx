@@ -20,7 +20,9 @@ type AppState = {
   setPatientCondition: (c: 'stable' | 'deteriorating' | 'critical') => void;
   missionStage: 'idle' | 'to_patient' | 'to_hospital';
   heartRate: number;
+  setHeartRate: (hr: number) => void;
   spo2: number;
+  setSpo2: (s: number) => void;
   setMissionStage: (s: 'idle' | 'to_patient' | 'to_hospital') => void;
   activeRole: 'simulation' | 'patient' | 'driver' | 'hospital' | 'admin';
   setActiveRole: (r: 'simulation' | 'patient' | 'driver' | 'hospital' | 'admin') => void;
@@ -37,6 +39,7 @@ type AppState = {
   driverCoords: [number, number] | null;
   setDriverCoords: (coords: [number, number] | null) => void;
   goldenHour: number;
+  setGoldenHour: (gh: number) => void;
   resetGoldenHour: () => void;
   criticalEventActive: boolean;
   startCriticalEvent: (severity?: 'high' | 'medium') => void;
@@ -694,9 +697,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       patientType, setPatientType,
       patientSeverity, setPatientSeverity,
       patientCondition, setPatientCondition,
-      heartRate, spo2,
+      heartRate, setHeartRate,
+      spo2, setSpo2,
       missionStage, setMissionStage,
-      goldenHour, resetGoldenHour,
+      goldenHour, setGoldenHour, resetGoldenHour,
       criticalEventActive, startCriticalEvent,
       selectedHospital, setSelectedHospital,
       navigating, setNavigating,
