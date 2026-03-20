@@ -102,6 +102,7 @@ type AppState = {
   isSidebarOpen: boolean;
   setIsSidebarOpen: (v: boolean) => void;
   emitSync: (type: string, payload: any) => void;
+  userId: string;
 };
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -480,8 +481,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                   : []
                 );
                 
-                // If I am NOT the source (driver/admin/sim), sync my local driver view
-                if (activeRoleRef.current !== 'driver' && activeRoleRef.current !== 'admin' && activeRoleRef.current !== 'simulation') {
+                // If I am the patient and this is my allocated driver, update local view
+                if (data.driver_id === activeAmbulanceId || data.driver_id === assignedDriverId || data.driver_id === userIdRef.current) {
                   setDriverCoords([data.latitude, data.longitude]);
                 }
                 if (data.speed != null) setAmbulanceSpeed(data.speed);
@@ -655,6 +656,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       trafficLayer, setTrafficLayer,
       isSidebarOpen, setIsSidebarOpen,
       emitSync,
+      userId: userIdRef.current
     }}>
       {children}
     </AppContext.Provider>

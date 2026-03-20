@@ -17,7 +17,7 @@ export default function DriverRolePanel() {
     ambulanceSpeed, goldenHour,
     liveTemp, liveWind, liveVisibility, liveRain,
     elevationData, currentSegIdx,
-    t, language, emitSync
+    t, language, emitSync, userId
   } = useApp();
 
   const activeAmbulance = (Array.isArray(ambulances) ? ambulances.find(a => a.id === activeAmbulanceId) : null) || (Array.isArray(ambulances) ? ambulances[0] : null);
@@ -63,9 +63,13 @@ export default function DriverRolePanel() {
     }, 3000);
   };
 
+  // Assign this device to its unique userId for demo and enable live GPS by default
   React.useEffect(() => {
-    // Wait for ID assignment from sync socket / admin
-  }, [activeAmbulanceId]);
+    if (userId) {
+      setActiveAmbulanceId(userId);
+      setIsLiveGPS(true);
+    }
+  }, [userId, setActiveAmbulanceId, setIsLiveGPS]);
 
   return (
     <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>

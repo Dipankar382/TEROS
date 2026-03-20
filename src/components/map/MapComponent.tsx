@@ -190,11 +190,14 @@ export default function MapComponent() {
     }
   }, [navigating, missionStage, setAmbulanceSpeed, setToPatientPath, setToHospitalPath]);
 
-  // Stage 1: Fetch path from ambulance station → emergency scene
+  // Stage 1: Fetch path from current driver location (or station) → emergency scene
   useEffect(() => {
     if (!emergencyCoords) return;
     const [eLat, eLng] = emergencyCoords;
-    const [sLat, sLng] = ambulanceStation;
+    // Use driverCoords if available for a truly "live" path from current position
+    const startCoords = driverCoords || ambulanceStation;
+    const [sLat, sLng] = startCoords;
+    
     fetch(`https://router.project-osrm.org/route/v1/driving/${sLng},${sLat};${eLng},${eLat}?overview=full&geometries=geojson`)
       .then(r => r.json())
       .then(data => {
@@ -202,13 +205,15 @@ export default function MapComponent() {
           const coords: [number, number][] = data.routes[0].geometry.coordinates.map((c: number[]) => [c[1], c[0]]);
           if (coords.length > 0) {
             setToPatientPath(coords);
+            // If we are already navigating, we might want to reset progress if the path changed significantly
+            // but for simplicity we just update the path.
           }
         } else {
           showNotification('Navigation Error', 'Could not find road path to incident site.', 'danger');
         }
       })
       .catch(err => console.error('Stage 1 Fetch Error', err));
-  }, [emergencyCoords, showNotification, setToPatientPath]);
+  }, [emergencyCoords, driverCoords, showNotification, setToPatientPath]);
 
   // Stage 2: Fetch path from emergency scene → hospital (only on initial setup, not on reroutes)
   useEffect(() => {
@@ -523,7 +528,7 @@ export default function MapComponent() {
         <CenterOnAmbulance trigger={centerTrigger} markerRef={ambulanceRef} />
 
         {/* Auto-Zoom to SOS Scene */}
-        {sosStatus === 'dispatched' && emergencyCoords && <MapBoundsController routeParams={[ambulanceStation, emergencyCoords as number[]]} />}
+        {sosStatus === 'dispatched' && emergencyCoords && <MapBoundsController routeParams={[(driverCoords || ambulanceStation), (emergencyCoords as number[])]} />}
 
         {/* Multi-Ambulance Visualizer - Only show during Live Demo Roles */}
         {activeRole !== 'simulation' && Array.isArray(ambulances) && ambulances.map(amb => {
