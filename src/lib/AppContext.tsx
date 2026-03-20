@@ -479,6 +479,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setActiveAmbulanceId(data.driver_id);
                 showNotification('SOS Accepted', 'A live ambulance is en route!', 'success');
               }
+              // If I am admin/hospital, I also need to know who is assigned
+              else {
+                setActiveAmbulanceId(data.driver_id);
+              }
               setTimeout(() => { isRemoteUpdate.current = false; }, 50);
               break;
 
@@ -525,19 +529,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               isRemoteUpdate.current = true;
               if (new_state === 'ARRIVED_AT_PATIENT') {
                 setMissionStage('to_hospital');
+                setSosStatus('picked_up');
                 if (emergencyCoords) findOptimalHospital(emergencyCoords);
               } else if (new_state === 'EN_ROUTE_TO_HOSPITAL') {
                 setMissionStage('to_hospital');
+                setSosStatus('picked_up');
               } else if (new_state === 'COMPLETED') {
                 setNavigating(false);
                 setMissionStage('idle');
-                setSosStatus('idle');
-                setEmergencyCoords(null);
-                setActiveTripId(null);
-                if (activeRoleRef.current === 'patient') {
-                  setActiveAmbulanceId(null);
-                }
-                setAmbulances(prev => Array.isArray(prev) ? prev.map(a => ({ ...a, status: 'available' })) : []);
+                setSosStatus('delivered');
+                showNotification('Mission Success', 'The patient has been delivered safely.', 'success');
+                
+                setTimeout(() => {
+                  setSosStatus('idle');
+                  setEmergencyCoords(null);
+                  setActiveTripId(null);
+                  if (activeRoleRef.current === 'patient') {
+                    setActiveAmbulanceId(null);
+                  }
+                  setAmbulances(prev => Array.isArray(prev) ? prev.map(a => ({ ...a, status: 'available' })) : []);
+                }, 4000);
               }
               setTimeout(() => { isRemoteUpdate.current = false; }, 50);
               break;

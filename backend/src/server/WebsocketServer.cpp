@@ -230,13 +230,23 @@ void WebsocketServer::handle_accept_sos(websocketpp::connection_hdl hdl, const j
     std::string trip_id = payload.value("trip_id", "");
     log_with_time("[DISPATCH] Driver " + driver->id + " accepted SOS " + trip_id);
 
-    // Notify everyone who is responding to which trip
-    json assigned = {
-        {"type", "SOS_ASSIGNED"},
-        {"driver_id", driver->id},
-        {"trip_id", trip_id}
-    };
-    broadcast(assigned);
+    // Persist the assignment in GlobalState
+    auto trip = GlobalState::getInstance().getTrip(trip_id);
+    if (trip) {
+        trip->driver_id = driver->id;
+        trip->state = TripState::DISPATCHED; 
+        GlobalState::getInstance().updateTrip(*trip);
+        
+        // Notify everyone who is responding to which trip
+        json assigned = {
+            {"type", "SOS_ASSIGNED"},
+            {"driver_id", driver->id},
+            {"trip_id", trip_id}
+        };
+        broadcast(assigned);
+    } else {
+        log_with_time("[ERROR] Trip " + trip_id + " not found while accepting SOS");
+    }
 }
 
 void WebsocketServer::handle_telemetry(websocketpp::connection_hdl hdl, const json& payload) {

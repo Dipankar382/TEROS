@@ -27,8 +27,8 @@ export default function DriverRolePanel() {
   const distToPatient = (driverCoords && emergencyCoords) ? calculateDistance(driverCoords, emergencyCoords) : Infinity;
   const distToHospital = (driverCoords && targetHospital) ? calculateDistance(driverCoords, [targetHospital.lat, targetHospital.lng]) : Infinity;
 
-  const canPickUp = distToPatient <= 10;
-  const canHandover = distToHospital <= 10;
+  const canPickUp = distToPatient <= 10 || !isLiveGPS;
+  const canHandover = distToHospital <= 10 || !isLiveGPS;
 
   // Terrain risk calculations
   const liveAltitude = Math.round(elevationData[currentSegIdx] || 0);
@@ -61,7 +61,7 @@ export default function DriverRolePanel() {
     setTimeout(() => {
         setSosStatus('idle');
         setActiveAmbulanceId(null);
-    }, 3000);
+    }, 4000);
   };
 
   // Assign this device to its unique userId for demo and enable live GPS by default
@@ -120,7 +120,10 @@ export default function DriverRolePanel() {
                   window.navigator.vibrate([200, 100, 200]);
                 }
                 setIsLiveGPS(true);
-                emitSync('ACCEPT_SOS', { trip_id: activeTripId });
+                emitSync('ACCEPT_SOS', { trip_id: activeTripId || `trip_${userId}` });
+                // Optimistically set to dispatched for instant feedback
+                setSosStatus('dispatched');
+                showNotification('Mission Accepted', 'You are now en route to the patient.', 'success');
               }}
               style={{
                 width: '100%', padding: '20px', background: '#10B981', color: 'white',
