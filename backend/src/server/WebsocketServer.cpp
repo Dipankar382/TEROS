@@ -112,8 +112,24 @@ void WebsocketServer::handle_auth(websocketpp::connection_hdl hdl, const json& p
         {"id", id},
         {"role", role_str},
         {"connectedClients", (int)allUsers.size()},
-        {"activeDrivers", ambulances}
+        {"activeDrivers", ambulances},
+        {"activeTrips", json::array()}
     };
+    
+    auto trips = GlobalState::getInstance().getActiveTrips();
+    json tripsArray = json::array();
+    for (const auto& [tid, t] : trips) {
+        tripsArray.push_back({
+            {"trip_id", t.trip_id},
+            {"patient_id", t.patient_id},
+            {"driver_id", t.driver_id},
+            {"state", (int)t.state},
+            {"patient_lat", t.patient_lat},
+            {"patient_lng", t.patient_lng},
+            {"condition", t.condition}
+        });
+    }
+    authResponse["activeTrips"] = tripsArray;
     m_server.send(hdl, authResponse.dump(), websocketpp::frame::opcode::text);
 
     // Notify all other clients about the new connection
@@ -141,6 +157,9 @@ void WebsocketServer::handle_sos(websocketpp::connection_hdl hdl, const json& pa
     Trip trip;
     trip.trip_id = "trip_" + patient->id;
     trip.patient_id = patient->id;
+    trip.patient_lat = lat;
+    trip.patient_lng = lng;
+    trip.condition = payload.value("condition", "critical");
     trip.state = TripState::DISPATCHED;
     GlobalState::getInstance().addTrip(trip);
 
@@ -157,6 +176,9 @@ void WebsocketServer::handle_sos(websocketpp::connection_hdl hdl, const json& pa
         {"condition", payload.value("condition", "critical")}
     };
     broadcast(sosAlert);
+    
+    // Explicitly notify Admins about new active trip
+    broadcast_fleet(); 
 
     // Also send SOS_ACCEPTED confirmation back to the patient
     json response = {
@@ -237,7 +259,7 @@ void WebsocketServer::handle_state_transition(websocketpp::connection_hdl hdl, c
 }
 
 void WebsocketServer::handle_emergency_coords(websocketpp::connection_hdl hdl, const json& payload) {
-    // Broadcast updated emergency coordinates to all clients except sender
+    // Relay updated emergency coordinates to all clients except sender
     json update = {
         {"type", "EMERGENCY_COORDS_UPDATE"},
         {"coords", payload} 
@@ -251,7 +273,9 @@ void WebsocketServer::handle_sos_status_update(websocketpp::connection_hdl hdl, 
         {"type", "SOS_STATUS_UPDATE"},
         {"status", payload.value("status", "idle")},
         {"activeAmbulanceId", payload.value("activeAmbulanceId", "")},
-        {"selectedHospital", payload.value("selectedHospital", "")}
+        {"selectedHospital", payload.value("selectedHospital", "")},
+        {"goldenHour", payload.value("goldenHour", 3600)},
+        {"criticalEventActive", payload.value("criticalEventActive", false)}
     };
     broadcast_except(update, hdl);
 }
@@ -280,6 +304,7 @@ void WebsocketServer::broadcast(const json& msg) {
     auto users = GlobalState::getInstance().getAllUsers();
     std::string payload = msg.dump();
     for (const auto& [id, user] : users) {
+        if (user.hdl.expired()) continue;
         try {
             m_server.send(user.hdl, payload, websocketpp::frame::opcode::text);
         } catch (...) {
@@ -292,6 +317,7 @@ void WebsocketServer::broadcast_except(const json& msg, websocketpp::connection_
     auto users = GlobalState::getInstance().getAllUsers();
     std::string payload = msg.dump();
     for (const auto& [id, user] : users) {
+        if (user.hdl.expired()) continue;
         try {
             // Robust check for same connection handle
             bool is_sender = !user.hdl.owner_before(sender) && !sender.owner_before(user.hdl);

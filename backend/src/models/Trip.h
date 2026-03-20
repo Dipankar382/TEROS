@@ -15,6 +15,9 @@ struct Trip {
     std::string driver_id;
     std::string hospital_id;
     TripState state = TripState::IDLE;
+    double patient_lat = 0.0;
+    double patient_lng = 0.0;
+    std::string condition = "critical";
     long long start_time = 0;
     double estimated_eta_seconds = 0.0;
 };

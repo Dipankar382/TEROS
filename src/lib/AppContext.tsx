@@ -424,6 +424,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               if (Array.isArray(data.activeDrivers)) {
                 setAmbulances(data.activeDrivers);
               }
+              if (Array.isArray(data.activeTrips) && data.activeTrips.length > 0) {
+                const trip = data.activeTrips[0]; // Sync first active trip for demo
+                const authoritativeRoles = ['admin', 'hospital', 'driver'];
+                if (authoritativeRoles.includes(activeRoleRef.current)) {
+                  isRemoteUpdate.current = true;
+                  setActiveTripId(trip.trip_id);
+                  if (trip.patient_lat && trip.patient_lng) {
+                    setEmergencyCoords([trip.patient_lat, trip.patient_lng]);
+                  }
+                  if (trip.condition) setPatientCondition(trip.condition);
+                  // Map TripState enum back to string status
+                  const stateMap: Record<number, any> = {
+                    1: 'dispatched',
+                    2: 'picked_up',
+                    3: 'delivered',
+                    0: 'idle'
+                  };
+                  if (stateMap[trip.state]) setSosStatus(stateMap[trip.state]);
+                  setTimeout(() => { isRemoteUpdate.current = false; }, 50);
+                }
+              }
               break;
 
             case 'USER_JOINED':
@@ -458,6 +479,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                     window.navigator.vibrate([500, 200, 500, 200, 500]);
                   }
                 }
+                setTimeout(() => { isRemoteUpdate.current = false; }, 50);
+              }
+              break;
+
+            case 'EMERGENCY_COORDS_UPDATE':
+              if (data.coords && data.coords.latitude != null && data.coords.longitude != null) {
+                isRemoteUpdate.current = true;
+                setEmergencyCoords([data.coords.latitude, data.coords.longitude]);
                 setTimeout(() => { isRemoteUpdate.current = false; }, 50);
               }
               break;

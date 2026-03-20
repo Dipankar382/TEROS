@@ -7,6 +7,11 @@ GlobalState& GlobalState::getInstance() {
 
 void GlobalState::addUser(const std::string& id, UserRole role, websocketpp::connection_hdl hdl) {
     std::lock_guard<std::mutex> lock(state_mutex);
+    auto it = users.find(id);
+    if (it != users.end()) {
+        hdl_to_userid.erase(it->second.hdl);
+    }
+    
     User user;
     user.id = id;
     user.role = role;
