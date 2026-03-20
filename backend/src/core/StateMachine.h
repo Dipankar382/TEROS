@@ -1,6 +1,5 @@
 #pragma once
 #include "../models/Trip.h"
-#include <string>
 
 class StateMachine {
 public:

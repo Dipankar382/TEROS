@@ -284,35 +284,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [showNotification]);
 
-  // Automated Allocation Service
-  useEffect(() => {
-    if (sosStatus === 'requested' && emergencyCoords && activeAmbulanceId === null) {
-      const timer = setTimeout(() => {
-        let nearestId: string | null = null;
-        let minDistance = Infinity;
-
-        const liveDrivers = ambulances.filter(a => a.status === 'available');
-
-        liveDrivers.forEach(amb => {
-          const dist = calculateDistance(emergencyCoords, [amb.lat, amb.lng]);
-          if (dist < minDistance) {
-            minDistance = dist;
-            nearestId = amb.id;
-          }
-        });
-
-        if (nearestId) {
-          const targetId = nearestId;
-          setAmbulances(prev => Array.isArray(prev) ? prev.map(a => a.id === targetId ? { ...a, status: 'busy' } : a) : []);
-          setActiveAmbulanceId(targetId);
-          setSosStatus('dispatched');
-          showNotification('Ambulance Allocated', `Unit ${targetId} has been dispatched automatically.`, 'success');
-        }
-      }, 1000); // Reduce to 1s for "INSTANT" feeling in live demo
-      return () => clearTimeout(timer);
-    }
-  }, [sosStatus, emergencyCoords, activeAmbulanceId, ambulances, calculateDistance, showNotification]);
-
   // Continuous GPS Tracking (Driver & Patient)
   useEffect(() => {
     if (typeof window === 'undefined' || !navigator.geolocation) return;
@@ -472,10 +443,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setSosStatus('requested');
                 setPatientCondition(data.condition || 'critical');
                 setActiveTripId(data.trip_id);
-                // If I am a patient, I also want to track this trip's assigned resource
-                if (activeRoleRef.current === 'patient') {
-                  setActiveAmbulanceId(data.trip_id);
-                }
+                
                 showNotification('🚨 SOS ALERT', `Incoming ${data.condition || 'Critical'} Emergency Request!`, 'danger');
                 if (activeRoleRef.current === 'driver') {
                   if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
@@ -499,9 +467,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               setSosStatus('dispatched');
               setActiveTripId(data.trip_id);
               setAssignedDriverId(data.driver_id);
-              if (activeRoleRef.current === 'patient') {
+              
+              // If I am the assigned driver
+              if (activeRoleRef.current === 'driver' && data.driver_id === userIdRef.current) {
                 setActiveAmbulanceId(data.driver_id);
-          showNotification('SOS Accepted', 'A live ambulance is en route!', 'success');
+                setNavigating(true);
+                showNotification('Mission Assigned', 'You have been dispatched to an emergency!', 'success');
+              }
+              // If I am the patient
+              else if (activeRoleRef.current === 'patient') {
+                setActiveAmbulanceId(data.driver_id);
+                showNotification('SOS Accepted', 'A live ambulance is en route!', 'success');
               }
               setTimeout(() => { isRemoteUpdate.current = false; }, 50);
               break;

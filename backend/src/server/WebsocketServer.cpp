@@ -1,6 +1,7 @@
 #include "WebsocketServer.h"
 #include "../core/GlobalState.h"
 #include "../core/StateMachine.h"
+#include "../geo/Telemetry.h"
 #include <iostream>
 #include <chrono>
 #include <iomanip>
@@ -157,7 +158,7 @@ void WebsocketServer::handle_sos(websocketpp::connection_hdl hdl, const json& pa
     patLoc.longitude = lng;
     GlobalState::getInstance().updateUserLocation(patient->id, patLoc);
 
-    // Create immediate Trip
+    // Create primary trip state
     Trip trip;
     trip.trip_id = "trip_" + patient->id;
     trip.patient_id = patient->id;
@@ -165,26 +166,56 @@ void WebsocketServer::handle_sos(websocketpp::connection_hdl hdl, const json& pa
     trip.patient_lng = lng;
     trip.condition = payload.value("condition", "critical");
     trip.state = TripState::DISPATCHED;
-    GlobalState::getInstance().addTrip(trip);
 
+    // --- Automated Allocation Logic (FIND NEAREST BUSY DRIVER) ---
+    std::string nearest_driver_id = "";
+    double min_dist = 1e18;
+    auto users = GlobalState::getInstance().getAllUsers();
+    
+    for (const auto& [uid, user] : users) {
+        if (user.role == UserRole::DRIVER && user.is_online) {
+            double dist = geo::calculate_distance(lat, lng, user.last_location.latitude, user.last_location.longitude);
+            if (dist < min_dist) {
+                min_dist = dist;
+                nearest_driver_id = uid;
+            }
+        }
+    }
+
+    if (!nearest_driver_id.empty()) {
+        trip.driver_id = nearest_driver_id;
+        log_with_time("[AUTO-ALLOCATE] Assigned Driver " + nearest_driver_id + " to SOS from " + patient->id);
+    } else {
+        log_with_time("[AUTO-ALLOCATE] No available drivers found for SOS from " + patient->id);
+    }
+
+    GlobalState::getInstance().addTrip(trip);
     log_with_time("[SOS] Patient " + patient->id + " triggered at coordinates.");
 
-    // Broadcast SOS_ALERT to ALL connected clients (Drivers, Admins, Hospitals)
-    // This is the primary event that triggers the Driver to see the patient on their map
+    // Broadcast SOS_ALERT to everyone
     json sosAlert = {
         {"type", "SOS_ALERT"},
         {"patient_id", patient->id},
         {"trip_id", trip.trip_id},
         {"latitude", lat},
         {"longitude", lng},
-        {"condition", payload.value("condition", "critical")}
+        {"condition", trip.condition}
     };
     broadcast(sosAlert);
+
+    // If assigned, broadcast SOS_ASSIGNED
+    if (!trip.driver_id.empty()) {
+        json assigned = {
+            {"type", "SOS_ASSIGNED"},
+            {"driver_id", trip.driver_id},
+            {"trip_id", trip.trip_id}
+        };
+        broadcast(assigned);
+    }
     
-    // Explicitly notify Admins about new active trip
     broadcast_fleet(); 
 
-    // Also send SOS_ACCEPTED confirmation back to the patient
+    // Confirm to patient
     json response = {
         {"type", "SOS_ACCEPTED"},
         {"trip_id", trip.trip_id}

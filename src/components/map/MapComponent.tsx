@@ -60,7 +60,8 @@ export default function MapComponent() {
     mockEmergencies,
     isLiveGPS, driverCoords, setDriverCoords,
     ambulances, activeAmbulanceId, activeRole, sosStatus,
-    terrain, setTerrain, weatherLayer, setWeatherLayer, trafficLayer, setTrafficLayer
+    terrain, setTerrain, weatherLayer, setWeatherLayer, trafficLayer, setTrafficLayer,
+    userId
   } = useApp();
 
   const [centerTrigger, setCenterTrigger] = useState(0);
@@ -532,9 +533,11 @@ export default function MapComponent() {
 
         {/* Multi-Ambulance Visualizer - Only show during Live Demo Roles */}
         {activeRole !== 'simulation' && Array.isArray(ambulances) && ambulances.map(amb => {
+          const isMe = amb.id === userId;
           const isActive = amb.id === activeAmbulanceId;
-          const isLocalDriver = activeRole === 'driver' && isActive;
+          const isLocalDriver = activeRole === 'driver' && isMe;
           
+          // If we are the driver, we handle our own marker with the ambulanceRef separately or specially
           return (
             <Marker 
               key={amb.id}
@@ -542,18 +545,19 @@ export default function MapComponent() {
               position={[amb.lat, amb.lng] as L.LatLngExpression} 
               icon={L.divIcon({
                 html: `<div style="width:40px;height:40px;position:relative;">
-                  <div style="position:absolute;inset:-4px;border-radius:50%;border:2px solid ${isActive ? '#EF4444' : '#2563EB'};${isActive ? 'animation:pulseGlow 1s infinite;' : ''} opacity:0.8;"></div>
-                  <div style="width:40px;height:40px;border-radius:50%;background:${isActive ? '#EF4444' : '#2563EB'};border:3px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">
+                  <div style="position:absolute;inset:-4px;border-radius:50%;border:2px solid ${isActive ? '#EF4444' : isMe ? '#10B981' : '#2563EB'};${isActive ? 'animation:pulseGlow 1s infinite;' : ''} opacity:0.8;"></div>
+                  <div style="width:40px;height:40px;border-radius:50%;background:${isActive ? '#EF4444' : isMe ? '#10B981' : '#2563EB'};border:3px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">
                     <svg viewBox="0 0 24 24" fill="white" style="width:20px;height:20px;"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5H15V3H9v2H6.5c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
                   </div>
                   ${isActive ? '<div style="position:absolute;top:-5px;right:-5px;background:#EF4444;color:white;font-size:7px;padding:1px 3px;border-radius:3px;font-weight:900;box-shadow:0 1px 3px rgba(0,0,0,0.2);">ACTIVE</div>' : ''}
+                  ${isMe ? '<div style="position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);background:#10B981;color:white;font-size:7px;padding:1px 4px;border-radius:3px;font-weight:900;box-shadow:0 1px 3px rgba(0,0,0,0.2);">YOU</div>' : ''}
                 </div>`,
                 className: '', iconSize: [40, 40], iconAnchor: [20, 20],
               })}
-              zIndexOffset={isActive ? 1000 : 100}
+              zIndexOffset={isActive ? 1000 : isMe ? 500 : 100}
             >
                 <Popup>
-                    <div style={{ fontWeight: 800 }}>{amb.name}</div>
+                    <div style={{ fontWeight: 800 }}>{isMe ? 'Your Ambulance' : amb.name} {isActive && '(Active Mission)'}</div>
                     <div style={{ fontSize: '11px', color: amb.status === 'available' ? 'green' : 'red' }}>
                         ● {amb.status.toUpperCase()}
                     </div>
