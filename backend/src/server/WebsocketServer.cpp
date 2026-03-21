@@ -9,7 +9,12 @@
 void log_with_time(const std::string& msg) {
     auto now = std::chrono::system_clock::now();
     auto in_time_t = std::chrono::system_clock::to_time_t(now);
-    std::cout << "[" << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X") << "] " << msg << std::endl;
+    std::tm* time_ptr = std::localtime(&in_time_t);
+    if (time_ptr) {
+        std::cout << "[" << std::put_time(time_ptr, "%Y-%m-%d %X") << "] " << msg << std::endl;
+    } else {
+        std::cout << "[Unknown Time] " << msg << std::endl;
+    }
 }
 
 
@@ -81,8 +86,15 @@ void WebsocketServer::on_message(websocketpp::connection_hdl hdl, server::messag
             json pong = {{"type", "HEARTBEAT_PONG"}};
             m_server.send(hdl, pong.dump(), websocketpp::frame::opcode::text);
         }
-    } catch (const json::parse_error& e) {
-        std::cerr << "[WebsocketServer] JSON parse error: " << e.what() << std::endl;
+    } catch (const nlohmann::json::exception& e) {
+        std::cerr << "[WebsocketServer] JSON exception: " << e.what() << std::endl;
+        log_with_time("[ERROR] JSON processing failed: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+        std::cerr << "[WebsocketServer] Standard exception: " << e.what() << std::endl;
+        log_with_time("[ERROR] Internal server error: " + std::string(e.what()));
+    } catch (...) {
+        std::cerr << "[WebsocketServer] Unknown exception caught" << std::endl;
+        log_with_time("[ERROR] An unknown error occurred in message handler");
     }
 }
 
@@ -104,11 +116,15 @@ void WebsocketServer::handle_auth(websocketpp::connection_hdl hdl, const json& p
     json ambulances = json::array();
     for (const auto& [uid, u] : allUsers) {
         if (u.role == UserRole::DRIVER) {
+            double lat = std::isfinite(u.last_location.latitude) ? u.last_location.latitude : 0.0;
+            double lng = std::isfinite(u.last_location.longitude) ? u.last_location.longitude : 0.0;
+            double speed = std::isfinite(u.last_location.speed) ? u.last_location.speed : 0.0;
+            
             ambulances.push_back({
                 {"id", uid},
-                {"lat", u.last_location.latitude},
-                {"lng", u.last_location.longitude},
-                {"speed", u.last_location.speed}
+                {"lat", lat},
+                {"lng", lng},
+                {"speed", speed}
             });
         }
     }
@@ -262,13 +278,19 @@ void WebsocketServer::handle_telemetry(websocketpp::connection_hdl hdl, const js
     GlobalState::getInstance().updateUserLocation(driver->id, loc);
 
     // Broadcast telemetry to all EXCEPT the sender (Driver doesn't need their own echo)
+    // Sanitize telemetry before broadcasting to prevent JSON serialization errors (NaN/Inf)
+    double b_lat = std::isfinite(loc.latitude) ? loc.latitude : 0.0;
+    double b_lng = std::isfinite(loc.longitude) ? loc.longitude : 0.0;
+    double b_speed = std::isfinite(loc.speed) ? loc.speed : 0.0;
+    double b_elev = std::isfinite(loc.elevation) ? loc.elevation : 0.0;
+
     json update = {
         {"type", "TELEMETRY_UPDATE"},
         {"driver_id", driver->id},
-        {"latitude", loc.latitude},
-        {"longitude", loc.longitude},
-        {"speed", loc.speed},
-        {"elevation", loc.elevation}
+        {"latitude", b_lat},
+        {"longitude", b_lng},
+        {"speed", b_speed},
+        {"elevation", b_elev}
     };
     broadcast_except(update, hdl);
 }
@@ -399,11 +421,14 @@ void WebsocketServer::broadcast_fleet() {
     json ambulances = json::array();
     for (const auto& [id, user] : users) {
         if (user.role == UserRole::DRIVER) {
+            double f_lat = std::isfinite(user.last_location.latitude) ? user.last_location.latitude : 0.0;
+            double f_lng = std::isfinite(user.last_location.longitude) ? user.last_location.longitude : 0.0;
+            
             ambulances.push_back({
                 {"id", user.id},
                 {"name", "Live Unit " + user.id.substr(user.id.length() > 4 ? user.id.length()-4 : 0)},
-                {"lat", user.last_location.latitude},
-                {"lng", user.last_location.longitude},
+                {"lat", f_lat},
+                {"lng", f_lng},
                 {"status", "available"} // Future: track via TripState
             });
         }

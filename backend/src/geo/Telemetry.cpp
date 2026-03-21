@@ -1,5 +1,6 @@
 #include "Telemetry.h"
 #include <cmath>
+#include <algorithm>
 
 namespace geo {
 
@@ -17,6 +18,9 @@ double calculate_distance(double lat1, double lon1, double lat2, double lon2) {
     double a = std::sin(dLat / 2.0) * std::sin(dLat / 2.0) +
                std::cos(to_radians(lat1)) * std::cos(to_radians(lat2)) *
                std::sin(dLon / 2.0) * std::sin(dLon / 2.0);
+               
+    // Clamp to [0, 1] to avoid NaN from sqrt due to precision errors
+    a = std::max(0.0, std::min(1.0, a));
                
     double c = 2.0 * std::atan2(std::sqrt(a), std::sqrt(1.0 - a));
     return EARTH_RADIUS_METERS * c;
