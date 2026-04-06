@@ -3,7 +3,8 @@
 import React from 'react';
 import { useTheme } from '../ThemeProvider';
 import { useApp } from '@/lib/AppContext';
-import { Moon, Sun, WifiOff, AlertTriangle, Menu, X } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
+import { Moon, Sun, WifiOff, AlertTriangle, Menu, X, Power } from 'lucide-react';
 
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
@@ -11,8 +12,10 @@ export default function Header() {
     offlineMode, setOfflineMode, 
     setEmergencyModalOpen, showNotification, 
     language, setLanguage, t,
-    isSidebarOpen, setIsSidebarOpen 
+    isSidebarOpen, setIsSidebarOpen,
+    firebaseConnected
   } = useApp();
+  const { user, logout } = useAuth();
 
   const handleOffline = () => {
     const newMode = !offlineMode;
@@ -106,6 +109,23 @@ export default function Header() {
 
       {/* Right: Actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Firebase Sync Status */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '6px',
+          padding: '5px 12px', borderRadius: '20px',
+          fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px',
+          background: firebaseConnected ? 'var(--success-light)' : 'var(--critical-light)', 
+          color: firebaseConnected ? 'var(--success)' : 'var(--critical)',
+          border: `1px solid ${firebaseConnected ? 'var(--success)' : 'var(--critical)'}`
+        }}>
+          <div style={{ 
+            width: '6px', height: '6px', borderRadius: '50%', 
+            background: firebaseConnected ? 'var(--success)' : 'var(--critical)', 
+            animation: firebaseConnected ? 'pulseGlow 2s infinite' : 'none' 
+          }} />
+          {firebaseConnected ? 'SYNC ACTIVE' : 'SYNC OFFLINE'}
+        </div>
+
         {/* Theme Toggle */}
         <button onClick={toggleTheme} style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px',
@@ -115,18 +135,20 @@ export default function Header() {
           {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
         </button>
 
-        {/* Offline Mode */}
-        <button onClick={handleOffline} style={{
-          padding: '7px 14px', borderRadius: 'var(--radius-sm)', 
-          border: `1px solid ${offlineMode ? 'var(--warning)' : 'var(--border)'}`,
-          background: offlineMode ? 'var(--warning-light)' : 'var(--surface)',
-          fontSize: '12px', fontWeight: 600, cursor: 'pointer',
-          color: offlineMode ? 'var(--warning)' : 'var(--text-secondary)', 
-          display: 'flex', alignItems: 'center', gap: '6px',
-        }}>
-          <WifiOff size={14} />
-          <span className="desktop-only">Offline Map</span>
-        </button>
+        {/* Logout Button (if logged in) */}
+        {user && (
+          <button onClick={logout} style={{
+            padding: '7px 14px', borderRadius: 'var(--radius-sm)', 
+            border: '1px solid var(--border)',
+            background: 'var(--surface-alt)',
+            fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+            color: 'var(--critical)',
+            display: 'flex', alignItems: 'center', gap: '6px',
+          }}>
+            <X size={14} />
+            <span className="desktop-only">Logout</span>
+          </button>
+        )}
 
         {/* SOS Emergency */}
         <button onClick={() => setEmergencyModalOpen(true)} style={{
