@@ -52,40 +52,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setIsFirebaseReady(true);
 
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    let unsubscribeAuth = () => {};
+    if (auth) {
+      unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+        setUser(currentUser);
 
-      if (currentUser) {
-        // Try fetching role from RTDB first
-        const roleRef = ref(rtdb, `users/${currentUser.uid}/role`);
-        const unsubscribeRole = onValue(roleRef, (snapshot) => {
-          let fetchedRole: UserRole = snapshot.val() as UserRole;
+        if (currentUser) {
+          // Try fetching role from RTDB first
+          const roleRef = ref(rtdb, `users/${currentUser.uid}/role`);
+          const unsubscribeRole = onValue(roleRef, (snapshot) => {
+            let fetchedRole: UserRole = snapshot.val() as UserRole;
 
-          // Fallback: use email-based demo map if no RTDB role set
-          if (!fetchedRole && currentUser.email) {
-            fetchedRole = DEMO_ROLE_MAP[currentUser.email] ?? null;
-          }
+            // Fallback: use email-based demo map if no RTDB role set
+            if (!fetchedRole && currentUser.email) {
+              fetchedRole = DEMO_ROLE_MAP[currentUser.email] ?? null;
+            }
 
-          setRole(fetchedRole);
+            setRole(fetchedRole);
+            setLoading(false);
+
+            // Only redirect if currently on login or root
+            if ((pathname === '/login' || pathname === '/') && fetchedRole) {
+              router.push(ROLE_ROUTES[fetchedRole] ?? '/');
+            }
+          });
+
+          return () => unsubscribeRole();
+        } else {
+          setRole(null);
           setLoading(false);
-
-          // Only redirect if currently on login or root
-          if ((pathname === '/login' || pathname === '/') && fetchedRole) {
-            router.push(ROLE_ROUTES[fetchedRole] ?? '/');
+          // Redirect to login if not on a public page
+          const publicPaths = ['/login', '/'];
+          if (!publicPaths.includes(pathname)) {
+            router.push('/login');
           }
-        });
-
-        return () => unsubscribeRole();
-      } else {
-        setRole(null);
-        setLoading(false);
-        // Redirect to login if not on a public page
-        const publicPaths = ['/login', '/'];
-        if (!publicPaths.includes(pathname)) {
-          router.push('/login');
         }
-      }
-    });
+      });
+    }
 
     return () => unsubscribeAuth();
   }, [router, pathname]);

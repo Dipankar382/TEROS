@@ -19,7 +19,7 @@ export const isFirebaseConfigured =
   firebaseConfig.apiKey !== 'your-api-key' &&
   !!firebaseConfig.databaseURL &&
   firebaseConfig.databaseURL !== 'your-database-url' &&
-  firebaseConfig.databaseURL.startsWith('https://');
+  firebaseConfig.databaseURL.startsWith?.('https://');
 
 // Initialize Firebase app only if configured
 const app = isFirebaseConfigured
