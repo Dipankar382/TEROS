@@ -10,16 +10,39 @@ import Notification from '@/components/ui/Notification';
 import EmergencyModal from '@/components/ui/EmergencyModal';
 import RouteSwitchModal from '@/components/ui/RouteSwitchModal';
 import MissionTelemetryOverlay from '@/components/ui/MissionTelemetryOverlay';
-
 import RoleSelector from '@/components/ui/RoleSelector';
 import PatientRolePanel from '@/components/panels/PatientRolePanel';
 import DriverRolePanel from '@/components/panels/DriverRolePanel';
 import HospitalRolePanel from '@/components/panels/HospitalRolePanel';
 import AdminRolePanel from '@/components/panels/AdminRolePanel';
 import { useApp } from '@/lib/AppContext';
+import { useAuth } from '@/lib/AuthContext';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 
 export default function Home() {
   const { activeRole, isSidebarOpen } = useApp();
+  const { user, role, loading, isFirebaseReady } = useAuth();
+  const router = useRouter();
+
+  // If Firebase is configured and user not logged in — redirect to login
+  useEffect(() => {
+    if (!loading && isFirebaseReady && !user) {
+      router.push('/login');
+    }
+  }, [loading, isFirebaseReady, user, router]);
+
+  // Show loading spinner while auth resolves
+  if (loading && isFirebaseReady) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', width: '100vw', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-solid)', flexDirection: 'column', gap: '16px' }}>
+        <Loader2 size={40} style={{ animation: 'spin 1s linear infinite', color: 'var(--primary)' }} />
+        <div style={{ fontSize: '14px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '1px' }}>AUTHENTICATING...</div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   return (
     <main style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', position: 'relative' }}>
@@ -29,14 +52,14 @@ export default function Home() {
       <RouteSwitchModal />
       <Header />
       <OfflineBanner />
-      
+
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex' }}>
-        {/* Left Sidebar Content - Switches based on activeRole */}
-        <div className="left-panel" style={{ 
-          width: isSidebarOpen ? '400px' : '0px', 
-          height: '100%', background: 'var(--surface)', 
-          borderRight: isSidebarOpen ? '1px solid var(--border)' : 'none', 
-          zIndex: 30, 
+        {/* Left Sidebar Content */}
+        <div className="left-panel" style={{
+          width: isSidebarOpen ? '400px' : '0px',
+          height: '100%', background: 'var(--surface)',
+          borderRight: isSidebarOpen ? '1px solid var(--border)' : 'none',
+          zIndex: 30,
           overflowY: 'auto', position: 'relative',
           transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
           transform: isSidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
@@ -60,15 +83,14 @@ export default function Home() {
           <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
             <DynamicMap />
           </div>
-          
+
           <MissionTelemetryOverlay />
 
-          {/* Top Role Selector Overlay - Visible only in Live Demo Mode */}
           {activeRole !== 'simulation' && (
             <div style={{ position: 'absolute', top: '16px', left: 0, right: 0, zIndex: 1000, pointerEvents: 'none' }}>
-               <div style={{ pointerEvents: 'auto' }}>
+              <div style={{ pointerEvents: 'auto' }}>
                 <RoleSelector />
-               </div>
+              </div>
             </div>
           )}
 

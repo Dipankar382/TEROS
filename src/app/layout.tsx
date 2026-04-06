@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Space_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AppProvider } from "@/lib/AppContext";
+import { AuthProvider } from "@/lib/AuthContext";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -73,9 +74,11 @@ export default function RootLayout({
       </head>
       <body>
         <ThemeProvider>
-          <AppProvider>
-            {children}
-          </AppProvider>
+          <AuthProvider>
+            <AppProvider>
+              {children}
+            </AppProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -3,13 +3,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { hospitals as initialHospitals, type Hospital } from '@/lib/mockData';
 import { translations, type Language, type TranslationKey } from './translations';
+import { rtdb, isFirebaseConfigured } from './firebase';
+import { ref, onValue, update, off, DatabaseReference } from 'firebase/database';
 
 type NotificationType = 'info' | 'success' | 'warning' | 'danger';
-
-type SyncData = {
-  type: string;
-  payload: any; // We use any here as it's a generic relay, but specific handlers cast it
-};
 
 type AppState = {
   patientType: 'critical' | 'normal';
@@ -20,16 +17,14 @@ type AppState = {
   setPatientCondition: (c: 'stable' | 'deteriorating' | 'critical') => void;
   missionStage: 'idle' | 'to_patient' | 'to_hospital';
   heartRate: number;
-  setHeartRate: (hr: number) => void;
+  setHeartRate: (v: number) => void;
   spo2: number;
-  setSpo2: (s: number) => void;
+  setSpo2: (v: number) => void;
   setMissionStage: (s: 'idle' | 'to_patient' | 'to_hospital') => void;
   activeRole: 'simulation' | 'patient' | 'driver' | 'hospital' | 'admin';
   setActiveRole: (r: 'simulation' | 'patient' | 'driver' | 'hospital' | 'admin') => void;
   sosStatus: 'idle' | 'requested' | 'dispatched' | 'picked_up' | 'delivered';
   setSosStatus: (s: 'idle' | 'requested' | 'dispatched' | 'picked_up' | 'delivered') => void;
-  activeTripId: string | null;
-  setActiveTripId: (id: string | null) => void;
   ambulances: Array<{ id: string; name: string; lat: number; lng: number; status: 'available' | 'busy' }>;
   setAmbulances: React.Dispatch<React.SetStateAction<Array<{ id: string; name: string; lat: number; lng: number; status: 'available' | 'busy' }>>>;
   activeAmbulanceId: string | null;
@@ -39,7 +34,6 @@ type AppState = {
   driverCoords: [number, number] | null;
   setDriverCoords: (coords: [number, number] | null) => void;
   goldenHour: number;
-  setGoldenHour: (gh: number) => void;
   resetGoldenHour: () => void;
   criticalEventActive: boolean;
   startCriticalEvent: (severity?: 'high' | 'medium') => void;
@@ -107,6 +101,7 @@ type AppState = {
   isSidebarOpen: boolean;
   setIsSidebarOpen: (v: boolean) => void;
   emitSync: (type: string, payload: any) => void;
+  firebaseConnected: boolean;
   userId: string;
 };
 
@@ -120,11 +115,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [patientSeverity, setPatientSeverity] = useState<'high' | 'medium' | 'low'>('medium');
   const [heartRate, setHeartRate] = useState(82);
   const [spo2, setSpo2] = useState(98);
-  const vitalsRef = useRef({ spo2: 98, heartRate: 82 });
-
-  useEffect(() => {
-    vitalsRef.current = { spo2, heartRate };
-  }, [spo2, heartRate]);
 
   const [missionStage, setMissionStage] = useState<'idle' | 'to_patient' | 'to_hospital'>('idle');
   const [goldenHour, setGoldenHour] = useState(3600);
@@ -137,24 +127,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [emergencyCoords, setEmergencyCoords] = useState<[number, number] | null>(null);
   const [isLiveGPS, setIsLiveGPS] = useState(false);
   const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null);
-
-  // Real-time Sync Reference (Native WebSocket to C++ backend)
-  const syncSocket = useRef<WebSocket | null>(null);
-  const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
-  const userIdRef = useRef(`user_${Math.floor(Math.random() * 10000)}`);
+  const [firebaseConnected, setFirebaseConnected] = useState(false);
 
   const [activeRole, setActiveRole] = useState<'simulation' | 'patient' | 'driver' | 'hospital' | 'admin'>('simulation');
   const activeRoleRef = useRef(activeRole);
   const [sosStatus, setSosStatus] = useState<'idle' | 'requested' | 'dispatched' | 'picked_up' | 'delivered'>('idle');
   const [activeAmbulanceId, setActiveAmbulanceId] = useState<string | null>(null);
-  const [activeTripId, setActiveTripId] = useState<string | null>(null);
-  const [assignedDriverId, setAssignedDriverId] = useState<string | null>(null);
   const [ambulances, setAmbulances] = useState<any[]>([]);
   const isRemoteUpdate = useRef(false);
+  const lastWriteTime = useRef(0);
+  const userIdRef = useRef(`user_${Math.floor(Math.random() * 10000)}`);
 
-  // New Mission Telemetry State
-  const [score, setScore] = useState(92);
-  const [elevationData, setElevationData] = useState<number[]>([350, 365, 380, 395, 410, 420, 408, 395, 375, 360, 355, 368, 385, 400, 412, 403, 385, 370, 358, 350]);
+  const [score] = useState(92);
+  const [elevationData] = useState<number[]>([350, 365, 380, 395, 410, 420, 408, 395, 375, 360, 355, 368, 385, 400, 412, 403, 385, 370, 358, 350]);
   const currentSegIdx = Math.min(Math.floor(ambulanceProgress * elevationData.length), elevationData.length - 1);
   const [toPatientPath, setToPatientPath] = useState<number[][] | null>(null);
   const [toHospitalPath, setToHospitalPath] = useState<number[][] | null>(null);
@@ -176,10 +161,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setTimeout(() => setNotification(null), 5000);
   }, []);
 
-  const [liveTemp, setLiveTemp] = useState(18);
-  const [liveWind, setLiveWind] = useState(12);
-  const [liveVisibility, setLiveVisibility] = useState(8);
-  const [liveRain, setLiveRain] = useState('0mm');
+  const [liveTemp] = useState(18);
+  const [liveWind] = useState(12);
+  const [liveVisibility] = useState(8);
+  const [liveRain] = useState('0mm');
   const [offlineMode, setOfflineMode] = useState(false);
   const [sosActive, setSosActive] = useState(false);
   const [hospitalData, setHospitalData] = useState<Hospital[]>(initialHospitals);
@@ -188,8 +173,213 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [emergencyModalOpen, setEmergencyModalOpen] = useState(false);
   const [routeSwitchModalOpen, setRouteSwitchModalOpen] = useState(false);
   const [currentObstacle, setCurrentObstacle] = useState<string | null>(null);
-  
-  // High-Risk Mountain Scenarios: Tehri/THDC Landslide
+
+  // Keep activeRoleRef in sync
+  useEffect(() => {
+    activeRoleRef.current = activeRole;
+  }, [activeRole]);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // FIREBASE REALTIME DATABASE — Sync Engine
+  // Replaces previous C++ WebSocket server
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  // Helper: write to Firebase with throttle (min 500ms between writes)
+  const firebaseWrite = useCallback((path: string, data: Record<string, any>) => {
+    if (!isFirebaseConfigured || !rtdb) return; // Demo mode — skip Firebase writes
+    const now = Date.now();
+    if (now - lastWriteTime.current < 500) return;
+    lastWriteTime.current = now;
+    try {
+      update(ref(rtdb, path), data);
+    } catch (err) {
+      console.warn('[Firebase] write failed:', err);
+    }
+  }, []);
+
+  // emitSync — drop-in replacement for old WebSocket emitSync
+  const emitSync = useCallback((type: string, payload: any) => {
+    const path = `liveState/${type.toLowerCase()}`;
+    firebaseWrite(path, { ...payload, _ts: Date.now() });
+  }, [firebaseWrite]);
+
+  // Subscribe to Firebase real-time state
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!isFirebaseConfigured || !rtdb) {
+      console.info('[AppContext] Firebase not configured — running in local demo mode.');
+      return; // Skip all Firebase subscriptions in demo mode
+    }
+
+    const listeners: { dbRef: DatabaseReference; handler: (snap: any) => void }[] = [];
+
+    const subscribe = (path: string, handler: (data: any) => void) => {
+      const dbRef = ref(rtdb, path);
+      const listener = (snap: any) => {
+        if (snap.exists()) handler(snap.val());
+      };
+      onValue(dbRef, listener);
+      listeners.push({ dbRef, handler: listener });
+    };
+
+    // Connection state
+    const connRef = ref(rtdb, '.info/connected');
+    const connHandler = (snap: any) => {
+      const connected = snap.val();
+      setFirebaseConnected(!!connected);
+      if (connected) {
+        showNotification('Firebase Connected', 'Real-time sync active via Firebase.', 'success');
+      }
+    };
+    onValue(connRef, connHandler);
+    listeners.push({ dbRef: connRef, handler: connHandler });
+
+    // Fleet (ambulances)
+    subscribe('liveState/fleet', (data) => {
+      if (Array.isArray(data.ambulances)) {
+        isRemoteUpdate.current = true;
+        setAmbulances(data.ambulances);
+        setTimeout(() => { isRemoteUpdate.current = false; }, 50);
+      }
+    });
+
+    // SOS status
+    subscribe('liveState/sos_status', (data) => {
+      isRemoteUpdate.current = true;
+      if (data.status) setSosStatus(data.status);
+      if (data.activeAmbulanceId !== undefined) setActiveAmbulanceId(data.activeAmbulanceId);
+      if (data.selectedHospital) setSelectedHospital(data.selectedHospital);
+      if (data.goldenHour != null) setGoldenHour(data.goldenHour);
+      if (data.criticalEventActive != null) setCriticalEventActive(data.criticalEventActive);
+      setTimeout(() => { isRemoteUpdate.current = false; }, 50);
+    });
+
+    // Emergency coordinates
+    subscribe('liveState/sos_request', (data) => {
+      if (data.latitude != null && data.longitude != null) {
+        isRemoteUpdate.current = true;
+        setEmergencyCoords([data.latitude, data.longitude]);
+        setSosStatus('requested');
+        if (data.condition) setPatientCondition(data.condition);
+        if (activeRoleRef.current === 'hospital' || activeRoleRef.current === 'admin') {
+          showNotification('🚨 SOS ALERT', `Incoming ${data.condition || 'Critical'} Emergency!`, 'danger');
+        }
+        setTimeout(() => { isRemoteUpdate.current = false; }, 50);
+      }
+    });
+
+    // Driver telemetry
+    subscribe('liveState/driver_telemetry', (data) => {
+      if (data.latitude != null && data.longitude != null) {
+        isRemoteUpdate.current = true;
+        const coords: [number, number] = [data.latitude, data.longitude];
+        if (activeRoleRef.current !== 'driver') {
+          setDriverCoords(coords);
+        }
+        setAmbulances(prev => Array.isArray(prev)
+          ? prev.map(a => a.id === data.driver_id ? { ...a, lat: data.latitude, lng: data.longitude } : a)
+          : []);
+        if (data.speed != null) setAmbulanceSpeed(data.speed);
+        setTimeout(() => { isRemoteUpdate.current = false; }, 50);
+      }
+    });
+
+    // Map layers
+    subscribe('liveState/map_layers', (data) => {
+      isRemoteUpdate.current = true;
+      if (data.terrain != null) setTerrain(data.terrain);
+      if (data.weatherLayer != null) setWeatherLayer(data.weatherLayer);
+      if (data.trafficLayer != null) setTrafficLayer(data.trafficLayer);
+      setTimeout(() => { isRemoteUpdate.current = false; }, 50);
+    });
+
+    // Hospital data
+    subscribe('liveState/hospital_data', (data) => {
+      if (Array.isArray(data.hospitals)) {
+        isRemoteUpdate.current = true;
+        setHospitalData(data.hospitals);
+        setTimeout(() => { isRemoteUpdate.current = false; }, 50);
+      }
+    });
+
+    // Trip state
+    subscribe('liveState/trip_state', (data) => {
+      isRemoteUpdate.current = true;
+      if (data.state === 'ARRIVED_AT_PATIENT') {
+        setMissionStage('to_hospital');
+      } else if (data.state === 'EN_ROUTE_TO_HOSPITAL') {
+        setMissionStage('to_hospital');
+      } else if (data.state === 'COMPLETED') {
+        setNavigating(false);
+        setMissionStage('idle');
+        setSosStatus('idle');
+        setEmergencyCoords(null);
+        setActiveAmbulanceId(null);
+        setAmbulances(prev => Array.isArray(prev) ? prev.map(a => ({ ...a, status: 'available' as const })) : []);
+      }
+      setTimeout(() => { isRemoteUpdate.current = false; }, 50);
+    });
+
+    return () => {
+      listeners.forEach(({ dbRef, handler }) => off(dbRef, 'value', handler));
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // OUTGOING: Push state changes to Firebase
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  // Outgoing: Driver Telemetry (throttled via firebaseWrite)
+  useEffect(() => {
+    if ((activeRole === 'driver' || activeRole === 'admin' || activeRole === 'simulation') && driverCoords) {
+      firebaseWrite('liveState/driver_telemetry', {
+        latitude: driverCoords[0],
+        longitude: driverCoords[1],
+        speed: ambulanceSpeed || 40,
+        elevation: elevationData[currentSegIdx] || 0,
+        driver_id: `driver_${activeRole}`,
+        _ts: Date.now()
+      });
+    }
+  }, [driverCoords, activeRole, ambulanceSpeed, elevationData, currentSegIdx, firebaseWrite]);
+
+  // Outgoing: SOS status
+  useEffect(() => {
+    if (sosStatus !== 'idle' && !isRemoteUpdate.current) {
+      const authoritativeRoles = ['admin', 'patient', 'driver'];
+      if (authoritativeRoles.includes(activeRole)) {
+        firebaseWrite('liveState/sos_status', {
+          status: sosStatus,
+          activeAmbulanceId,
+          selectedHospital,
+          goldenHour,
+          criticalEventActive,
+          _ts: Date.now()
+        });
+      }
+    }
+  }, [sosStatus, activeAmbulanceId, selectedHospital, activeRole, goldenHour, criticalEventActive, firebaseWrite]);
+
+  // Outgoing: Map layer toggles
+  useEffect(() => {
+    if ((activeRole === 'admin' || activeRole === 'simulation') && !isRemoteUpdate.current) {
+      firebaseWrite('liveState/map_layers', { terrain, weatherLayer, trafficLayer, _ts: Date.now() });
+    }
+  }, [terrain, weatherLayer, trafficLayer, activeRole, firebaseWrite]);
+
+  // Outgoing: Hospital data updates
+  useEffect(() => {
+    if ((activeRole === 'hospital' || activeRole === 'admin') && !isRemoteUpdate.current) {
+      firebaseWrite('liveState/hospital_data', { hospitals: hospitalData, _ts: Date.now() });
+    }
+  }, [hospitalData, activeRole, firebaseWrite]);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // EXISTING BUSINESS LOGIC (unchanged)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  // High-Risk Mountain Scenarios
   useEffect(() => {
     if (activeRole === 'simulation') {
       const timer = setTimeout(() => {
@@ -206,6 +396,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   ];
 
   const resetGoldenHour = useCallback(() => setGoldenHour(3600), []);
+
   const startCriticalEvent = useCallback((severity: 'high' | 'medium' = 'medium') => {
     setCriticalEventActive(true);
     setGoldenHour(severity === 'high' ? 1800 : 2700);
@@ -215,16 +406,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const stopGoldenHour = useCallback(() => setGoldenHour(0), []);
 
-  // Update golden hour whenever condition changes
+  // Update golden hour based on patient condition
   useEffect(() => {
     if (sosStatus === 'idle') {
-      if (patientCondition === 'critical') setGoldenHour(3600); // 60 mins
-      else if (patientCondition === 'deteriorating') setGoldenHour(7200); // 120 mins
-      else setGoldenHour(10800); // 180 mins
+      if (patientCondition === 'critical') setGoldenHour(3600);
+      else if (patientCondition === 'deteriorating') setGoldenHour(7200);
+      else setGoldenHour(10800);
     }
   }, [patientCondition, sosStatus]);
 
-  // Golden Hour countdown logic
+  // Golden Hour countdown
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
     if ((sosStatus === 'dispatched' || sosStatus === 'picked_up') && goldenHour > 0 && !paused) {
@@ -233,7 +424,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }, 1000);
     }
     return () => { if (timer) clearInterval(timer); };
-  }, [sosStatus, paused]); // Remove goldenHour from deps to prevent interval thrashing
+  }, [sosStatus, paused]);
 
   const calculateDistance = useCallback((p1: [number, number], p2: [number, number]) => {
     return Math.sqrt(Math.pow(p1[0] - p2[0], 2) + Math.pow(p1[1] - p2[1], 2));
@@ -261,11 +452,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
           setEmergencyCoords(coords);
           setSosStatus('requested');
-          emitSync('SOS_REQUEST', { 
-            latitude: coords[0], 
-            longitude: coords[1],
-            condition: patientCondition
-          });
+          // Write SOS to Firebase
+          try {
+            update(ref(rtdb, 'liveState/sos_request'), {
+              latitude: coords[0],
+              longitude: coords[1],
+              condition: patientCondition,
+              _ts: Date.now()
+            });
+          } catch (e) { console.warn('[Firebase] SOS write failed:', e); }
           showNotification('SOS BROADCASTED', 'Searching for nearest available ambulance...', 'danger');
         },
         (err) => {
@@ -273,21 +468,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const mockCoords: [number, number] = [30.0668, 78.2973];
           setEmergencyCoords(mockCoords);
           setSosStatus('requested');
-          emitSync('SOS_REQUEST', { 
-            latitude: mockCoords[0], 
-            longitude: mockCoords[1],
-            condition: patientCondition 
-          });
+          try {
+            update(ref(rtdb, 'liveState/sos_request'), {
+              latitude: mockCoords[0],
+              longitude: mockCoords[1],
+              condition: patientCondition,
+              _ts: Date.now()
+            });
+          } catch (e) { console.warn('[Firebase] SOS write failed:', e); }
           showNotification('SOS (MOCK GPS)', 'Broadcasted from emergency coordinates.', 'danger');
         }
       );
     }
-  }, [showNotification]);
+  }, [showNotification, patientCondition]);
 
-  // Continuous GPS Tracking (Driver & Patient)
+  // Automated Allocation Service
+  useEffect(() => {
+    if (sosStatus === 'requested' && emergencyCoords && activeAmbulanceId === null) {
+      const timer = setTimeout(() => {
+        let nearestId: string | null = null;
+        let minDistance = Infinity;
+        const liveDrivers = ambulances.filter(a => a.status === 'available');
+        liveDrivers.forEach(amb => {
+          const dist = calculateDistance(emergencyCoords, [amb.lat, amb.lng]);
+          if (dist < minDistance) { minDistance = dist; nearestId = amb.id; }
+        });
+        if (nearestId) {
+          const targetId = nearestId;
+          setAmbulances(prev => Array.isArray(prev) ? prev.map(a => a.id === targetId ? { ...a, status: 'busy' } : a) : []);
+          setActiveAmbulanceId(targetId);
+          setSosStatus('dispatched');
+          showNotification('Ambulance Allocated', `Unit ${targetId} has been dispatched.`, 'success');
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [sosStatus, emergencyCoords, activeAmbulanceId, ambulances, calculateDistance, showNotification]);
+
+  // Continuous GPS Tracking
   useEffect(() => {
     if (typeof window === 'undefined' || !navigator.geolocation) return;
-
     let watchId: number | null = null;
 
     if (activeRole === 'driver' && isLiveGPS) {
@@ -303,9 +523,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (err.code === 1) {
             showNotification('GPS Access Required', 'Please enable location permissions for live tracking.', 'warning');
             setIsLiveGPS(false);
-          } else {
-            console.warn('GPS Error inside watchPosition:', err);
-            // Don't set fallback coordinates to maintain ACCURACY
           }
         },
         { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
@@ -315,16 +532,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         (pos) => {
           const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
           setEmergencyCoords(coords);
-          // Sync with server immediately
-          emitSync('UPDATE_EMERGENCY_COORDS', { latitude: coords[0], longitude: coords[1] });
+          if (isFirebaseConfigured && rtdb) {
+            try {
+              update(ref(rtdb, 'liveState/sos_request'), { latitude: coords[0], longitude: coords[1], _ts: Date.now() });
+            } catch (e) { /* silent */ }
+          }
         },
         (err) => {
-          if (err.code === 1) {
-            showNotification('GPS Access', 'Please enable location to track your position.', 'warning');
-          } else {
-             console.warn('Patient GPS Error, falling back.', err);
-             // Stay at previous or null to avoid inaccurate jumps
-          }
+          if (err.code === 1) showNotification('GPS Access', 'Please enable location to track your position.', 'warning');
         },
         { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
       );
@@ -332,352 +547,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     return () => { if (watchId !== null) navigator.geolocation.clearWatch(watchId); };
   }, [activeRole, isLiveGPS, sosStatus, activeAmbulanceId, showNotification, setIsLiveGPS]);
-
-  // Helper to emit events to the C++ Live Server
-  const emitSync = useCallback((type: string, payload: any) => {
-    if (syncSocket.current && syncSocket.current.readyState === WebSocket.OPEN) {
-      syncSocket.current.send(JSON.stringify({ type, ...payload }));
-    }
-  }, []);
-
-  // Keep activeRoleRef in sync
-  useEffect(() => {
-    activeRoleRef.current = activeRole;
-  }, [activeRole]);
-
-  // Re-send AUTH when role changes (but only if socket is already open)
-  useEffect(() => {
-    if (syncSocket.current && syncSocket.current.readyState === WebSocket.OPEN) {
-      let roleEnum = 'UNKNOWN';
-      if (activeRole === 'admin') roleEnum = 'ADMIN';
-      else if (activeRole === 'hospital') roleEnum = 'HOSPITAL';
-      else if (activeRole === 'patient') roleEnum = 'PATIENT';
-      else if (activeRole === 'driver') roleEnum = 'DRIVER';
-      syncSocket.current.send(JSON.stringify({ type: 'AUTH', id: userIdRef.current, role: roleEnum }));
-    }
-  }, [activeRole]);
-
-  useEffect(() => {
-    const heartbeat = setInterval(() => {
-      emitSync('HEARTBEAT', {});
-    }, 15000);
-    return () => clearInterval(heartbeat);
-  }, [emitSync]);
-
-  // STABLE WebSocket connection — deps are empty so it never reconnects on state changes
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    function connect() {
-      const socketUrl = process.env.NEXT_PUBLIC_WS_SERVER_URL || 'ws://localhost:9001';
-      const ws = new WebSocket(socketUrl);
-      syncSocket.current = ws;
-
-      ws.onopen = () => {
-        console.log('[WS] Connected to C++ Teros Sync Server');
-        showNotification('Sync Connected', 'Real-time WebSocket link active.', 'success');
-
-        // Send AUTH with current role
-        let roleEnum = 'UNKNOWN';
-        const role = activeRoleRef.current;
-        if (role === 'admin') roleEnum = 'ADMIN';
-        else if (role === 'hospital') roleEnum = 'HOSPITAL';
-        else if (role === 'patient') roleEnum = 'PATIENT';
-        else if (role === 'driver') roleEnum = 'DRIVER';
-        ws.send(JSON.stringify({ type: 'AUTH', id: userIdRef.current, role: roleEnum }));
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          const { type } = data;
-
-          switch (type) {
-            case 'AUTH_SUCCESS':
-              console.log(`[WS] Authenticated as ${data.role}. ${data.connectedClients} clients online.`);
-              if (Array.isArray(data.activeDrivers)) {
-                setAmbulances(data.activeDrivers);
-              }
-              if (Array.isArray(data.activeTrips) && data.activeTrips.length > 0) {
-                const trip = data.activeTrips[0]; // Sync first active trip for demo
-                const authoritativeRoles = ['admin', 'hospital', 'driver'];
-                if (authoritativeRoles.includes(activeRoleRef.current)) {
-                  isRemoteUpdate.current = true;
-                  setActiveTripId(trip.trip_id);
-                  if (trip.patient_lat && trip.patient_lng) {
-                    setEmergencyCoords([trip.patient_lat, trip.patient_lng]);
-                  }
-                  if (trip.condition) setPatientCondition(trip.condition);
-                  // Map TripState enum back to string status
-                  const stateMap: Record<number, any> = {
-                    1: 'dispatched',
-                    2: 'picked_up',
-                    3: 'delivered',
-                    0: 'idle'
-                  };
-                  if (stateMap[trip.state]) setSosStatus(stateMap[trip.state]);
-                  setTimeout(() => { isRemoteUpdate.current = false; }, 50);
-                }
-              }
-              break;
-
-            case 'USER_JOINED':
-              console.log(`[WS] ${data.role} joined: ${data.id}`);
-              if (data.role === 'PATIENT') {
-                showNotification('Patient Connected', 'A patient device has joined the network.', 'info');
-              } else if (data.role === 'DRIVER') {
-                showNotification('Driver Connected', 'An ambulance driver has joined the network.', 'info');
-                setAmbulances(prev => {
-                  const safePrev = Array.isArray(prev) ? prev : [];
-                  if (safePrev.find(a => a.id === data.id)) return safePrev;
-                  // Don't set hardcoded lat/lng here, wait for TELEMETRY_UPDATE
-                  return [...safePrev, { id: data.id, name: `Live Unit ${data.id.slice(-4)}`, lat: 0, lng: 0, status: 'available' }];
-                });
-              }
-              break;
-
-            case 'SOS_ALERT':
-              if (data.latitude != null && data.longitude != null) {
-                isRemoteUpdate.current = true;
-                setEmergencyCoords([data.latitude, data.longitude]);
-                setSosStatus('requested');
-                setPatientCondition(data.condition || 'critical');
-                setActiveTripId(data.trip_id);
-                
-                showNotification('🚨 SOS ALERT', `Incoming ${data.condition || 'Critical'} Emergency Request!`, 'danger');
-                if (activeRoleRef.current === 'driver') {
-                  if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
-                    window.navigator.vibrate([500, 200, 500, 200, 500]);
-                  }
-                }
-                setTimeout(() => { isRemoteUpdate.current = false; }, 50);
-              }
-              break;
-
-            case 'EMERGENCY_COORDS_UPDATE':
-              if (data.coords && data.coords.latitude != null && data.coords.longitude != null) {
-                isRemoteUpdate.current = true;
-                setEmergencyCoords([data.coords.latitude, data.coords.longitude]);
-                setTimeout(() => { isRemoteUpdate.current = false; }, 50);
-              }
-              break;
-
-            case 'SOS_ASSIGNED':
-              isRemoteUpdate.current = true;
-              setSosStatus('dispatched');
-              setActiveTripId(data.trip_id);
-              setAssignedDriverId(data.driver_id);
-              
-              // If I am the assigned driver
-              if (activeRoleRef.current === 'driver' && data.driver_id === userIdRef.current) {
-                setActiveAmbulanceId(data.driver_id);
-                setNavigating(true);
-                showNotification('Mission Assigned', 'You have been dispatched to an emergency!', 'success');
-              }
-              // If I am the patient
-              else if (activeRoleRef.current === 'patient') {
-                setActiveAmbulanceId(data.driver_id);
-                showNotification('SOS Accepted', 'A live ambulance is en route!', 'success');
-              }
-              // If I am admin/hospital, I also need to know who is assigned
-              else {
-                setActiveAmbulanceId(data.driver_id);
-              }
-              setTimeout(() => { isRemoteUpdate.current = false; }, 50);
-              break;
-
-            case 'FLEET_UPDATE':
-              isRemoteUpdate.current = true;
-              if (Array.isArray(data.ambulances)) {
-                setAmbulances(data.ambulances);
-              } else {
-                console.warn('[WS] FLEET_UPDATE received non-array ambulances:', data.ambulances);
-              }
-              setTimeout(() => { isRemoteUpdate.current = false; }, 50);
-              break;
-
-            case 'TELEMETRY_UPDATE':
-              if (data.latitude != null && data.longitude != null) {
-                isRemoteUpdate.current = true;
-                setAmbulances(prev => {
-                  const safePrev = Array.isArray(prev) ? prev : [];
-                  const exists = safePrev.find(a => a.id === data.driver_id);
-                  if (exists) {
-                    return safePrev.map(a => a.id === data.driver_id ? { ...a, lat: data.latitude, lng: data.longitude } : a);
-                  }
-                  // Add new live driver if not already in list
-                  return [...safePrev, { 
-                    id: data.driver_id, 
-                    name: `Live Unit ${data.driver_id.slice(-4)}`, 
-                    lat: data.latitude, 
-                    lng: data.longitude, 
-                    status: 'busy' 
-                  }];
-                });
-                
-                // If I am the patient and this is my allocated driver, update local view
-                if (data.driver_id === activeAmbulanceId || data.driver_id === assignedDriverId || data.driver_id === userIdRef.current) {
-                  setDriverCoords([data.latitude, data.longitude]);
-                }
-                if (data.speed != null) setAmbulanceSpeed(data.speed);
-                setTimeout(() => { isRemoteUpdate.current = false; }, 50);
-              }
-              break;
-
-            case 'TRIP_STATE_UPDATE': {
-              const { new_state } = data;
-              isRemoteUpdate.current = true;
-              if (new_state === 'ARRIVED_AT_PATIENT') {
-                setMissionStage('to_hospital');
-                setSosStatus('picked_up');
-                if (emergencyCoords) findOptimalHospital(emergencyCoords);
-              } else if (new_state === 'EN_ROUTE_TO_HOSPITAL') {
-                setMissionStage('to_hospital');
-                setSosStatus('picked_up');
-              } else if (new_state === 'COMPLETED') {
-                setNavigating(false);
-                setMissionStage('idle');
-                setSosStatus('delivered');
-                showNotification('Mission Success', 'The patient has been delivered safely.', 'success');
-                
-                setTimeout(() => {
-                  setSosStatus('idle');
-                  setEmergencyCoords(null);
-                  setActiveTripId(null);
-                  if (activeRoleRef.current === 'patient') {
-                    setActiveAmbulanceId(null);
-                  }
-                  setAmbulances(prev => Array.isArray(prev) ? prev.map(a => ({ ...a, status: 'available' })) : []);
-                }, 4000);
-              }
-              setTimeout(() => { isRemoteUpdate.current = false; }, 50);
-              break;
-            }
-
-            case 'SOS_STATUS_UPDATE':
-              if (sosStatus !== data.status || activeAmbulanceId !== data.activeAmbulanceId || selectedHospital !== data.selectedHospital) {
-                isRemoteUpdate.current = true;
-                setSosStatus(data.status);
-                if (data.activeAmbulanceId) setActiveAmbulanceId(data.activeAmbulanceId);
-                if (data.selectedHospital) setSelectedHospital(data.selectedHospital);
-                if (data.goldenHour != null) setGoldenHour(data.goldenHour);
-                if (data.criticalEventActive != null) setCriticalEventActive(data.criticalEventActive);
-                setTimeout(() => { isRemoteUpdate.current = false; }, 50);
-              }
-              break;
-
-            case 'MAP_LAYERS_UPDATE':
-              isRemoteUpdate.current = true;
-              setTerrain(data.terrain);
-              setWeatherLayer(data.weatherLayer);
-              setTrafficLayer(data.trafficLayer);
-              setTimeout(() => { isRemoteUpdate.current = false; }, 50);
-              break;
-
-            case 'HOSPITAL_DATA_UPDATE':
-              isRemoteUpdate.current = true;
-              setHospitalData(data.hospitalData);
-              setTimeout(() => { isRemoteUpdate.current = false; }, 50);
-              break;
-
-            case 'VITALS_UPDATE':
-              if (activeRoleRef.current !== 'patient') {
-                isRemoteUpdate.current = true;
-                setHeartRate(data.heartRate);
-                setSpo2(data.spo2);
-                setTimeout(() => { isRemoteUpdate.current = false; }, 50);
-              }
-              break;
-
-            case 'MISSION_STATS_UPDATE':
-              isRemoteUpdate.current = true;
-              setGoldenHour(data.goldenHour);
-              setCriticalEventActive(data.criticalEventActive);
-              setAmbulanceSpeed(data.ambulanceSpeed);
-              setTimeout(() => { isRemoteUpdate.current = false; }, 50);
-              break;
-          }
-        } catch (err) {
-          console.error('[WS] Failed to process message:', err);
-        }
-      };
-
-      ws.onclose = () => {
-        console.log('[WS] Disconnected. Reconnecting in 3s...');
-        reconnectTimer.current = setTimeout(connect, 3000);
-      };
-
-      ws.onerror = () => {
-        ws.close(); // triggers onclose → auto-reconnect
-      };
-    }
-
-    connect();
-
-    return () => {
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-      syncSocket.current?.close();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty deps = stable connection, never reconnects on state changes
-
-  // Outgoing: Driver Telemetry with 500ms throttle
-  const lastTelemetryTime = useRef(0);
-  useEffect(() => {
-    if ((activeRole === 'driver' || activeRole === 'admin' || activeRole === 'simulation') && driverCoords) {
-      const now = Date.now();
-      if (now - lastTelemetryTime.current > 500) {
-        lastTelemetryTime.current = now;
-        emitSync('DRIVER_TELEMETRY', { latitude: driverCoords[0], longitude: driverCoords[1], speed: ambulanceSpeed || 40, elevation: elevationData[currentSegIdx] || 0 });
-      }
-    }
-  }, [driverCoords, activeRole, ambulanceSpeed, elevationData, currentSegIdx, emitSync]);
-
-  // Outgoing: Patient emergency coords
-  useEffect(() => {
-    if (activeRole === 'patient' && emergencyCoords) {
-      emitSync('UPDATE_EMERGENCY_COORDS', { latitude: emergencyCoords[0], longitude: emergencyCoords[1] });
-    }
-  }, [emergencyCoords, activeRole, emitSync]);
-
-  // Outgoing: SOS status changes
-  useEffect(() => {
-    if (sosStatus !== 'idle' && !isRemoteUpdate.current) {
-        // Only allow certain roles to push status updates to prevent loops
-        const authoritativeRoles = ['admin', 'patient', 'driver'];
-        if (authoritativeRoles.includes(activeRole)) {
-            emitSync('UPDATE_SOS_STATUS', { status: sosStatus, activeAmbulanceId, selectedHospital, goldenHour, criticalEventActive });
-        }
-    }
-  }, [sosStatus, activeAmbulanceId, selectedHospital, activeRole, emitSync]);
-
-  // Outgoing: Map layer toggles
-  useEffect(() => {
-    if (activeRole === 'admin' || activeRole === 'simulation') {
-      emitSync('UPDATE_MAP_LAYERS', { terrain, weatherLayer, trafficLayer });
-    }
-  }, [terrain, weatherLayer, trafficLayer, activeRole, emitSync]);
-
-  // Outgoing: Hospital data updates 
-  useEffect(() => {
-    if (activeRole === 'hospital' || activeRole === 'admin') {
-      emitSync('UPDATE_HOSPITAL_DATA', hospitalData);
-    }
-  }, [hospitalData, activeRole, emitSync]);
-
-  // Outgoing Vitals Sync (Patient to Admin/Hospital)
-  useEffect(() => {
-    if (activeRole === 'patient' && !isRemoteUpdate.current) {
-      emitSync('VITALS_UPDATE', { heartRate, spo2 });
-    }
-  }, [heartRate, spo2, activeRole, emitSync]);
-
-  // Outgoing Mission Stats Sync (Admin/Driver to others)
-  useEffect(() => {
-    if ((activeRole === 'admin' || activeRole === 'driver') && !isRemoteUpdate.current) {
-      emitSync('MISSION_STATS_UPDATE', { goldenHour, criticalEventActive, ambulanceSpeed });
-    }
-  }, [goldenHour, criticalEventActive, ambulanceSpeed, activeRole, emitSync]);
 
   return (
     <AppContext.Provider value={{
@@ -687,7 +556,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       heartRate, setHeartRate,
       spo2, setSpo2,
       missionStage, setMissionStage,
-      goldenHour, setGoldenHour, resetGoldenHour,
+      goldenHour, resetGoldenHour,
       criticalEventActive, startCriticalEvent,
       selectedHospital, setSelectedHospital,
       navigating, setNavigating,
@@ -699,8 +568,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       liveTemp, liveWind, liveVisibility, liveRain,
       offlineMode, setOfflineMode,
       sosActive, setSosActive,
-      hospitalData,
-      setHospitalData,
+      hospitalData, setHospitalData,
       ambulanceSpeed, setAmbulanceSpeed,
       simSpeedMultiplier, setSimSpeedMultiplier,
       notification, showNotification,
@@ -721,7 +589,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       driverCoords, setDriverCoords,
       activeRole, setActiveRole,
       sosStatus, setSosStatus,
-      activeTripId, setActiveTripId,
       ambulances, setAmbulances,
       activeAmbulanceId, setActiveAmbulanceId,
       score,
@@ -733,7 +600,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       trafficLayer, setTrafficLayer,
       isSidebarOpen, setIsSidebarOpen,
       emitSync,
-      userId: userIdRef.current
+      firebaseConnected,
+      userId: userIdRef.current,
     }}>
       {children}
     </AppContext.Provider>
@@ -742,6 +610,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
 export const useApp = () => {
   const ctx = useContext(AppContext);
-  if (!ctx) throw new Error("useApp must be inside AppProvider");
+  if (!ctx) throw new Error('useApp must be inside AppProvider');
   return ctx;
 };

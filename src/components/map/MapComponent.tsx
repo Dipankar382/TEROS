@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap, Circle, ZoomC
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useApp } from '@/lib/AppContext';
+import { useAuth } from '@/lib/AuthContext';
 import { hospitals, weatherData, routes } from '@/lib/mockData';
 
 // Fixed starting point (ambulance station) - Tehri Garhwal Region
@@ -60,9 +61,10 @@ export default function MapComponent() {
     mockEmergencies,
     isLiveGPS, driverCoords, setDriverCoords,
     ambulances, activeAmbulanceId, activeRole, sosStatus,
-    terrain, setTerrain, weatherLayer, setWeatherLayer, trafficLayer, setTrafficLayer,
-    userId
+    terrain, setTerrain, weatherLayer, setWeatherLayer, trafficLayer, setTrafficLayer
   } = useApp();
+  const { user } = useAuth();
+  const userId = user?.uid || 'guest';
 
   const [centerTrigger, setCenterTrigger] = useState(0);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
