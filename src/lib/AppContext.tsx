@@ -256,6 +256,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // Connection state
     const connRef = ref(rtdb, '.info/connected');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const connHandler = (snap: { val: () => any }) => {
       const connected = snap.val();
       setFirebaseConnected(!!connected);
@@ -350,6 +351,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setEmergencyCoords(null);
         setActiveAmbulanceId(null);
         setAmbulances(prev => Array.isArray(prev) ? prev.map(a => ({ ...a, status: 'available' as const })) : []);
+      }
+      setTimeout(() => { isRemoteUpdate.current = false; }, 50);
+    });
+
+    // State Transition
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    subscribe('liveState/state_transition', (data: any) => {
+      isRemoteUpdate.current = true;
+      if (data.new_state === 'ARRIVED_AT_PATIENT') {
+        setMissionStage('to_hospital');
+      } else if (data.new_state === 'EN_ROUTE_TO_HOSPITAL') {
+        setMissionStage('to_hospital');
+      } else if (data.new_state === 'COMPLETED') {
+        setNavigating(false);
+        setMissionStage('idle');
+        setSosStatus('idle');
+        setEmergencyCoords(null);
+        setActiveAmbulanceId(null);
+        setAmbulances(prev => Array.isArray(prev) ? prev.map(a => ({ ...a, status: 'available' as const })) : []);
+      }
+      setTimeout(() => { isRemoteUpdate.current = false; }, 50);
+    });
+
+    // Accept SOS
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    subscribe('liveState/accept_sos', (data: any) => {
+      isRemoteUpdate.current = true;
+      if (data.driver_id) {
+        setAmbulances(prev => Array.isArray(prev) ? prev.map(a => a.id === data.driver_id ? { ...a, status: 'busy' } : a) : []);
+        setActiveAmbulanceId(data.driver_id as string);
+        setSosStatus('dispatched');
       }
       setTimeout(() => { isRemoteUpdate.current = false; }, 50);
     });
