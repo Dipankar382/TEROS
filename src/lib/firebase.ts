@@ -1,7 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getDatabase } from "firebase/database";
-import { getFirestore } from "firebase/firestore";
+import { Auth, getAuth } from "firebase/auth";
+import { Database, getDatabase } from "firebase/database";
+import { Firestore, getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -27,8 +27,8 @@ const app = isFirebaseConfigured
   : null;
 
 // Lazy getters — only call these when isFirebaseConfigured is true
-const auth = app ? getAuth(app) : null as any;
-const rtdb = (app && isFirebaseConfigured) ? getDatabase(app) : null as any;
-const db = app ? getFirestore(app) : null as any;
+const auth = (app ? getAuth(app) : null) as Auth;
+const rtdb = ((app && isFirebaseConfigured) ? getDatabase(app) : null) as Database;
+const db = (app ? getFirestore(app) : null) as Firestore;
 
 export { app, auth, rtdb, db };

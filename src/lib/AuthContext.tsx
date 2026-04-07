@@ -36,8 +36,8 @@ const DEMO_ROLE_MAP: Record<string, UserRole> = {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<UserRole>(null);
-  const [loading, setLoading] = useState(true);
-  const [isFirebaseReady, setIsFirebaseReady] = useState(false);
+  const [loading, setLoading] = useState(isFirebaseConfigured);
+  const [isFirebaseReady] = useState(isFirebaseConfigured);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -45,12 +45,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Use the pre-computed flag from firebase.ts
     if (!isFirebaseConfigured) {
       console.info('[Auth] No Firebase credentials — running in demo mode.');
-      setLoading(false);
-      setIsFirebaseReady(false);
       return;
     }
-
-    setIsFirebaseReady(true);
 
     let unsubscribeAuth = () => {};
     if (auth) {

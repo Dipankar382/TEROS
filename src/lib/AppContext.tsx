@@ -100,9 +100,17 @@ type AppState = {
   setTrafficLayer: (v: boolean) => void;
   isSidebarOpen: boolean;
   setIsSidebarOpen: (v: boolean) => void;
-  emitSync: (type: string, payload: any) => void;
+  emitSync: (type: string, payload: Record<string, unknown>) => void;
   firebaseConnected: boolean;
   userId: string;
+};
+
+export type FleetAmbulance = {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  status: 'available' | 'busy';
 };
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -133,10 +141,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const activeRoleRef = useRef(activeRole);
   const [sosStatus, setSosStatus] = useState<'idle' | 'requested' | 'dispatched' | 'picked_up' | 'delivered'>('idle');
   const [activeAmbulanceId, setActiveAmbulanceId] = useState<string | null>(null);
-  const [ambulances, setAmbulances] = useState<any[]>([]);
+  const [ambulances, setAmbulances] = useState<FleetAmbulance[]>([]);
   const isRemoteUpdate = useRef(false);
   const lastWriteTime = useRef(0);
-  const userIdRef = useRef(`user_${Math.floor(Math.random() * 10000)}`);
+  const [userId] = useState(() => `user_${Math.floor(Math.random() * 10000)}`);
 
   const [score] = useState(92);
   const [elevationData] = useState<number[]>([350, 365, 380, 395, 410, 420, 408, 395, 375, 360, 355, 368, 385, 400, 412, 403, 385, 370, 358, 350]);
@@ -185,7 +193,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ─────────────────────────────────────────────────────────────────────────────
 
   // Helper: write to Firebase with throttle (min 500ms between writes)
-  const firebaseWrite = useCallback((path: string, data: Record<string, any>) => {
+  const firebaseWrite = useCallback((path: string, data: Record<string, unknown>) => {
     if (!isFirebaseConfigured || !rtdb) return; // Demo mode — skip Firebase writes
     const now = Date.now();
     if (now - lastWriteTime.current < 500) return;
@@ -198,7 +206,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // emitSync — drop-in replacement for old WebSocket emitSync
-  const emitSync = useCallback((type: string, payload: any) => {
+  const emitSync = useCallback((type: string, payload: Record<string, unknown>) => {
     const path = `liveState/${type.toLowerCase()}`;
     firebaseWrite(path, { ...payload, _ts: Date.now() });
   }, [firebaseWrite]);
@@ -211,31 +219,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return; // Skip all Firebase subscriptions in demo mode
     }
 
-    const listeners: { dbRef: DatabaseReference; handler: (snap: any) => void }[] = [];
+    const listeners: { dbRef: DatabaseReference; handler: (snap: { exists: () => boolean; val: () => unknown }) => void }[] = [];
 
-    const subscribe = (path: string, handler: (data: any) => void) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    interface FirebaseData {
+      status?: 'idle' | 'requested' | 'dispatched' | 'picked_up' | 'delivered';
+      activeAmbulanceId?: string;
+      selectedHospital?: string;
+      goldenHour?: number;
+      criticalEventActive?: boolean;
+      latitude?: number;
+      longitude?: number;
+      condition?: 'stable' | 'deteriorating' | 'critical';
+      driver_id?: string;
+      speed?: number;
+      terrain?: boolean;
+      weatherLayer?: boolean;
+      trafficLayer?: boolean;
+      ambulances?: FleetAmbulance[];
+      hospitals?: Hospital[];
+      state?: string;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const subscribe = (path: string, handler: (data: FirebaseData) => void) => {
       const dbRef = ref(rtdb, path);
-      const listener = (snap: any) => {
-        if (snap.exists()) handler(snap.val());
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const listener = (snap: { exists: () => boolean; val: () => any }) => {
+        if (snap.exists()) handler(snap.val() as FirebaseData);
       };
-      onValue(dbRef, listener);
-      listeners.push({ dbRef, handler: listener });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      onValue(dbRef, listener as any);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      listeners.push({ dbRef, handler: listener as any });
     };
 
     // Connection state
     const connRef = ref(rtdb, '.info/connected');
-    const connHandler = (snap: any) => {
+    const connHandler = (snap: { val: () => any }) => {
       const connected = snap.val();
       setFirebaseConnected(!!connected);
       if (connected) {
         showNotification('Firebase Connected', 'Real-time sync active via Firebase.', 'success');
       }
     };
-    onValue(connRef, connHandler);
-    listeners.push({ dbRef: connRef, handler: connHandler });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onValue(connRef, connHandler as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    listeners.push({ dbRef: connRef, handler: connHandler as any });
 
     // Fleet (ambulances)
-    subscribe('liveState/fleet', (data) => {
+    subscribe('liveState/fleet', (data: FirebaseData) => {
       if (Array.isArray(data.ambulances)) {
         isRemoteUpdate.current = true;
         setAmbulances(data.ambulances);
@@ -246,11 +280,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // SOS status
     subscribe('liveState/sos_status', (data) => {
       isRemoteUpdate.current = true;
-      if (data.status) setSosStatus(data.status);
-      if (data.activeAmbulanceId !== undefined) setActiveAmbulanceId(data.activeAmbulanceId);
-      if (data.selectedHospital) setSelectedHospital(data.selectedHospital);
-      if (data.goldenHour != null) setGoldenHour(data.goldenHour);
-      if (data.criticalEventActive != null) setCriticalEventActive(data.criticalEventActive);
+      if (data.status) setSosStatus(data.status as 'idle' | 'requested' | 'dispatched' | 'picked_up' | 'delivered');
+      if (data.activeAmbulanceId !== undefined) setActiveAmbulanceId(data.activeAmbulanceId as string | null);
+      if (data.selectedHospital) setSelectedHospital(data.selectedHospital as string);
+      if (data.goldenHour != null) setGoldenHour(data.goldenHour as number);
+      if (data.criticalEventActive != null) setCriticalEventActive(!!data.criticalEventActive);
       setTimeout(() => { isRemoteUpdate.current = false; }, 50);
     });
 
@@ -258,9 +292,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     subscribe('liveState/sos_request', (data) => {
       if (data.latitude != null && data.longitude != null) {
         isRemoteUpdate.current = true;
-        setEmergencyCoords([data.latitude, data.longitude]);
+        setEmergencyCoords([data.latitude as number, data.longitude as number]);
         setSosStatus('requested');
-        if (data.condition) setPatientCondition(data.condition);
+        if (data.condition) setPatientCondition(data.condition as 'stable' | 'deteriorating' | 'critical');
         if (activeRoleRef.current === 'hospital' || activeRoleRef.current === 'admin') {
           showNotification('🚨 SOS ALERT', `Incoming ${data.condition || 'Critical'} Emergency!`, 'danger');
         }
@@ -277,7 +311,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setDriverCoords(coords);
         }
         setAmbulances(prev => Array.isArray(prev)
-          ? prev.map(a => a.id === data.driver_id ? { ...a, lat: data.latitude, lng: data.longitude } : a)
+          ? prev.map(a => a.id === data.driver_id ? { ...a, lat: data.latitude ?? a.lat, lng: data.longitude ?? a.lng } : a)
           : []);
         if (data.speed != null) setAmbulanceSpeed(data.speed);
         setTimeout(() => { isRemoteUpdate.current = false; }, 50);
@@ -287,14 +321,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Map layers
     subscribe('liveState/map_layers', (data) => {
       isRemoteUpdate.current = true;
-      if (data.terrain != null) setTerrain(data.terrain);
-      if (data.weatherLayer != null) setWeatherLayer(data.weatherLayer);
-      if (data.trafficLayer != null) setTrafficLayer(data.trafficLayer);
+      if (data.terrain != null) setTerrain(!!data.terrain);
+      if (data.weatherLayer != null) setWeatherLayer(!!data.weatherLayer);
+      if (data.trafficLayer != null) setTrafficLayer(!!data.trafficLayer);
       setTimeout(() => { isRemoteUpdate.current = false; }, 50);
     });
 
     // Hospital data
-    subscribe('liveState/hospital_data', (data) => {
+    subscribe('liveState/hospital_data', (data: FirebaseData) => {
       if (Array.isArray(data.hospitals)) {
         isRemoteUpdate.current = true;
         setHospitalData(data.hospitals);
@@ -321,10 +355,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => {
-      listeners.forEach(({ dbRef, handler }) => off(dbRef, 'value', handler));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      listeners.forEach(({ dbRef, handler }) => off(dbRef, 'value', handler as any));
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [showNotification]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // OUTGOING: Push state changes to Firebase
@@ -409,11 +443,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Update golden hour based on patient condition
   useEffect(() => {
     if (sosStatus === 'idle') {
-      if (patientCondition === 'critical') setGoldenHour(3600);
-      else if (patientCondition === 'deteriorating') setGoldenHour(7200);
-      else setGoldenHour(10800);
+      const target = patientCondition === 'critical' ? 3600 
+                   : patientCondition === 'deteriorating' ? 7200 
+                   : 10800;
+      if (goldenHour !== target) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setGoldenHour(target);
+      }
     }
-  }, [patientCondition, sosStatus]);
+  }, [patientCondition, sosStatus, goldenHour]);
 
   // Golden Hour countdown
   useEffect(() => {
@@ -424,7 +462,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }, 1000);
     }
     return () => { if (timer) clearInterval(timer); };
-  }, [sosStatus, paused]);
+  }, [sosStatus, paused, goldenHour]);
 
   const calculateDistance = useCallback((p1: [number, number], p2: [number, number]) => {
     return Math.sqrt(Math.pow(p1[0] - p2[0], 2) + Math.pow(p1[1] - p2[1], 2));
@@ -535,9 +573,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (isFirebaseConfigured && rtdb) {
             try {
               update(ref(rtdb, 'liveState/sos_request'), { latitude: coords[0], longitude: coords[1], _ts: Date.now() });
-            } catch (e) { /* silent */ }
+            } catch { /* silent */ }
           }
         },
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
         (err) => {
           if (err.code === 1) showNotification('GPS Access', 'Please enable location to track your position.', 'warning');
         },
@@ -601,7 +640,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isSidebarOpen, setIsSidebarOpen,
       emitSync,
       firebaseConnected,
-      userId: userIdRef.current,
+      userId,
     }}>
       {children}
     </AppContext.Provider>
